@@ -1,21 +1,3 @@
-# Terraform configuration file
-
-terraform {
-  required_version = ">= 1.4.0"
-
-  required_providers {
-    aws = {
-      source  = "hashicorp/aws"
-      version = "~> 5.0"
-    }
-  }
-}
-
-provider "aws" {
-  profile = "awspessoal"
-  region  = "us-east-1"
-}
-
 # Busca a AMI mais recente do Amazon Linux 2 em us-east-1
 data "aws_ami" "amazon_linux2" {
   most_recent = true
