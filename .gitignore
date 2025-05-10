@@ -1,0 +1,7 @@
+*.pem
+*.DS_Store
+*.log
+.terraform/
+*.hcl
+*.tfstate
+*.tfstate.*
