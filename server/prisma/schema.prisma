@@ -29,7 +29,7 @@ model Attendee {
   email String
   createdAt DateTime @default(now()) @map("created_at")
   
-  event Event @relation(fields: [eventId], references: [id])
+  event Event @relation(fields: [eventId], references: [id], onDelete: Cascade)
   eventId String
 
   @@unique([eventId, email])

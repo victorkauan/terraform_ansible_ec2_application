@@ -1,20 +1,31 @@
+import {
+  createEvent
+} from "./chunk-VDTIMRFL.mjs";
+import "./chunk-KDMJHR3Z.mjs";
+import {
+  getAttendeeBadge
+} from "./chunk-WXXCDBEQ.mjs";
+import {
+  getEventAttendees
+} from "./chunk-JFCAI4FH.mjs";
+import {
+  getEvent
+} from "./chunk-JRNT2BT2.mjs";
+import {
+  registerForEvent
+} from "./chunk-BIAM75WB.mjs";
+import "./chunk-JV6GRE7Y.mjs";
+
+// src/server.ts
 import fastify from "fastify";
 import fastifySwagger from "@fastify/swagger";
 import fastifySwaggerUI from "@fastify/swagger-ui";
 import {
   serializerCompiler,
   validatorCompiler,
-  jsonSchemaTransform,
+  jsonSchemaTransform
 } from "fastify-type-provider-zod";
-
-import { createEvent } from "./routes/create-event";
-import { registerForEvent } from "./routes/register-for-event";
-import { getEvent } from "./routes/get-event";
-import { getAttendeeBadge } from "./routes/get-attendee-badge";
-import { getEventAttendees } from "./routes/get-event-attendees";
-
-const app = fastify();
-
+var app = fastify();
 app.register(fastifySwagger, {
   swagger: {
     consumes: ["application/json"],
@@ -22,25 +33,21 @@ app.register(fastifySwagger, {
     info: {
       title: "Event Registration API",
       description: "API for managing event registrations",
-      version: "1.0.0",
-    },
+      version: "1.0.0"
+    }
   },
-  transform: jsonSchemaTransform,
+  transform: jsonSchemaTransform
 });
-
 app.register(fastifySwaggerUI, {
-  routePrefix: "/docs",
+  routePrefix: "/docs"
 });
-
 app.setValidatorCompiler(validatorCompiler);
 app.setSerializerCompiler(serializerCompiler);
-
 app.register(createEvent);
 app.register(registerForEvent);
 app.register(getEvent);
 app.register(getAttendeeBadge);
 app.register(getEventAttendees);
-
 app.listen({ port: 2424 }).then(() => {
   console.log("Server is running on http://localhost:2424/docs");
 });
