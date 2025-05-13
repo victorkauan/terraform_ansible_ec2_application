@@ -1,0 +1,23 @@
+---
+- name: Instalar Docker e rodar container Nginx
+  hosts: localhost
+  become: yes
+  tasks:
+    - name: Atualizar pacotes
+      apt:
+        update_cache: yes
+
+    - name: Instalar Docker
+      apt:
+        name: docker.io
+        state: present
+
+    - name: Rodar container Nginx com site customizado
+      docker_container:
+        name: nginx
+        image: nginx
+        state: started
+        ports:
+          - "80:80"
+        volumes:
+          - "{{ playbook_dir }}/site:/usr/share/nginx/html:ro"
