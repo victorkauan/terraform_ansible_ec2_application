@@ -1,7 +1,7 @@
 ---
-- name: Instalar Docker e rodar container Nginx
+- name: Instalar Docker
   hosts: localhost
-  become: yes
+  become: true
   tasks:
     - name: Atualizar pacotes
       apt:
@@ -12,12 +12,14 @@
         name: docker.io
         state: present
 
-    - name: Rodar container Nginx com site customizado
-      docker_container:
-        name: nginx
-        image: nginx
+    - name: Garantir que o serviço Docker está ativo e habilitado
+      service:
+        name: docker
         state: started
-        ports:
-          - "80:80"
-        volumes:
-          - "{{ playbook_dir }}/site:/usr/share/nginx/html:ro"
+        enabled: yes
+
+    - name: Adicionar usuário atual ao grupo docker
+      user:
+        name: "{{ ansible_user }}"
+        groups: docker
+        append: yes
