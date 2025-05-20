@@ -1,9 +1,9 @@
 ---
 - name: Instalar Docker
-  hosts: localhost
+  hosts: aws_ec2
   become: true
   tasks:
-    - name: Atualizar pacotes
+    - name: Atualizar cache do apt
       apt:
         update_cache: yes
 
@@ -23,3 +23,47 @@
         name: "{{ ansible_user }}"
         groups: docker
         append: yes
+
+    - name: Criar arquivo de validação na raiz do usuário
+      copy:
+        dest: ~/validation_ansible.txt
+        content: "Ansible executado com sucesso em {{ ansible_date_time.date }} {{ ansible_date_time.time }}\n"
+        owner: "{{ ansible_user }}"
+        group: "{{ ansible_user }}"
+        mode: '0644'
+
+- name: Deploy Container
+  hosts: aws_ec2
+  become: true
+  vars:
+    project_path: "/home/{{ ansible_user_id }}/server"
+    docker_image: "edvaljunior/application_docker_terraform_ec2_ansible/general:latest"
+    container_name: events-api
+
+  tasks:
+    - name: Criar diretório do projeto
+      file:
+        path: "{{ project_path }}"
+        state: directory
+        mode: '0755'
+
+    - name: Copiar arquivo docker-compose.yml
+      copy:
+        src: docker-compose-server.yml
+        dest: "{{ project_path }}/docker-compose.yml"
+        owner: "{{ ansible_user_id }}"
+        group: "{{ ansible_user_id }}"
+        mode: '0644'
+
+    - name: Parar e remover container existente (se houver)
+      shell: |
+        docker rm -f {{ container_name }}
+      ignore_errors: true
+
+    - name: Baixar imagem Docker atualizada
+      shell: docker pull {{ docker_image }}
+
+    - name: Subir container via docker-compose
+      shell: docker-compose up -d
+      args:
+        chdir: "{{ project_path }}"
