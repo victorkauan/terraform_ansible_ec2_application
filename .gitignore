@@ -1,1 +1,8 @@
 server/node_modules/
+*.pem
+*.DS_Store
+*.log
+.terraform/
+*.hcl
+*.tfstate
+*.tfstate.*
