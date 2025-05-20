@@ -1,69 +1,99 @@
 ---
-- name: Instalar Docker
+- name: Instalar e configurar Docker em Amazon Linux
   hosts: aws_ec2
   become: true
   tasks:
-    - name: Atualizar cache do apt
-      apt:
+    - name: Atualizar cache do yum
+      yum:
         update_cache: yes
 
-    - name: Instalar Docker
-      apt:
-        name: docker.io
+    - name: Instalar dependências Docker
+      yum:
+        name:
+          - yum-utils
+          - device-mapper-persistent-data
+          - lvm2
         state: present
 
-    - name: Garantir que o serviço Docker está ativo e habilitado
+    - name: Instalar Docker via Amazon Linux Extras
+      shell: amazon-linux-extras install docker -y
+      args:
+        creates: /usr/bin/docker
+
+    - name: Ativar e iniciar serviço Docker
       service:
         name: docker
         state: started
         enabled: yes
 
-    - name: Adicionar usuário atual ao grupo docker
+    - name: Criar diretório de CLI plugins no home do usuário
+      file:
+        path: "{{ ansible_env.HOME }}/.docker/cli-plugins"
+        state: directory
+        mode: '0755'
+        owner: "{{ ansible_user }}"
+        group: "{{ ansible_user }}"
+
+    - name: Baixar Docker Compose CLI v2.36.0 para usuário
+      get_url:
+        url: "https://github.com/docker/compose/releases/download/v2.36.0/docker-compose-linux-{{ ansible_architecture }}"
+        dest: "{{ ansible_env.HOME }}/.docker/cli-plugins/docker-compose"
+        mode: '0755'
+        owner: "{{ ansible_user }}"
+        group: "{{ ansible_user }}"
+
+    - name: Validar permissão executável
+      file:
+        path: "{{ ansible_env.HOME }}/.docker/cli-plugins/docker-compose"
+        mode: '0755'
+        owner: "{{ ansible_user }}"
+        group: "{{ ansible_user }}"
+
+    - name: Adicionar usuário ao grupo docker
       user:
         name: "{{ ansible_user }}"
         groups: docker
         append: yes
 
-    - name: Criar arquivo de validação na raiz do usuário
+    - name: Criar arquivo de validação
       copy:
-        dest: ~/validation_ansible.txt
+        dest: "/home/{{ ansible_user }}/validation_ansible.txt"
         content: "Ansible executado com sucesso em {{ ansible_date_time.date }} {{ ansible_date_time.time }}\n"
         owner: "{{ ansible_user }}"
         group: "{{ ansible_user }}"
         mode: '0644'
 
-- name: Deploy Container
+- name: Deploy Container via Docker Compose
   hosts: aws_ec2
   become: true
   vars:
-    project_path: "/home/{{ ansible_user_id }}/server"
+    project_path: "/home/{{ ansible_user }}/server"
     docker_image: "edvaljunior/application_docker_terraform_ec2_ansible/general:latest"
     container_name: events-api
-
   tasks:
     - name: Criar diretório do projeto
       file:
         path: "{{ project_path }}"
         state: directory
         mode: '0755'
+        owner: "{{ ansible_user }}"
+        group: "{{ ansible_user }}"
 
     - name: Copiar arquivo docker-compose.yml
       copy:
         src: docker-compose-server.yml
         dest: "{{ project_path }}/docker-compose.yml"
-        owner: "{{ ansible_user_id }}"
-        group: "{{ ansible_user_id }}"
+        owner: "{{ ansible_user }}"
+        group: "{{ ansible_user }}"
         mode: '0644'
 
-    - name: Parar e remover container existente (se houver)
-      shell: |
-        docker rm -f {{ container_name }}
+    - name: Parar e remover container existente
+      shell: docker compose down
+      args:
+        chdir: "{{ project_path }}"
       ignore_errors: true
 
-    - name: Baixar imagem Docker atualizada
-      shell: docker pull {{ docker_image }}
-
-    - name: Subir container via docker-compose
-      shell: docker-compose up -d
+    - name: Subir container via Docker Compose plugin
+      shell: docker compose up -d
       args:
         chdir: "{{ project_path }}"
