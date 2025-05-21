@@ -1,14 +1,5 @@
 version: "3.8"
 services:
-  events-api:
-    image: "edvaljunior/application_docker_terraform_ec2_ansible:latest"
-    container_name: events-api
-    ports:
-      - 2424:2424
-    restart: always
-    environment:
-      DATABASE_URL: postgres://postgres:postgres@db:5432/meubanco
-
   db:
     image: postgres:15
     environment:
@@ -19,6 +10,26 @@ services:
       - db_data:/var/lib/postgresql/data
     ports:
       - "5432:5432"
+    networks:
+      - service
+  events-api:
+    build:
+      context: .
+    container_name: events-api
+    ports:
+      - 2424:2424
+    restart: always
+    image: edvaljunior/application_docker_terraform_ec2_ansible:latest
+    environment:
+      DATABASE_URL: postgres://postgres:postgres@db:5432/meubanco
+    depends_on:
+      - db
+    networks:
+      - service
 
 volumes:
   db_data:
+
+networks:
+  service:
+    driver: bridge
