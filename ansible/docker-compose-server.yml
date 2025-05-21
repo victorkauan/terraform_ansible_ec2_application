@@ -14,7 +14,7 @@ services:
       - service
   events-api:
     build:
-      context: .
+      context: ../server
     container_name: events-api
     ports:
       - 2424:2424
