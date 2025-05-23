@@ -87,6 +87,24 @@
         group: "{{ ansible_user }}"
         mode: '0644'
 
+    - name: Garantir permissões de acesso e execução em /usr/src/app/
+      file:
+      path: /usr/src/app/
+      state: directory
+      mode: '0755'
+      recurse: yes
+      owner: "{{ ansible_user }}"
+      group: "{{ ansible_user }}"
+
+    - name: Garantir permissões de acesso e execução em /home/ec2-user/server
+      file:
+      path: "/home/{{ ansible_user }}/server"
+      state: directory
+      mode: '0755'
+      recurse: yes
+      owner: "{{ ansible_user }}"
+      group: "{{ ansible_user }}"
+
     - name: Parar e remover container existente
       shell: docker compose down
       args:
