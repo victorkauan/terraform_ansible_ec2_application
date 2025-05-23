@@ -12,14 +12,14 @@ services:
       - "5432:5432"
     networks:
       - service
+
   events-api:
-    build:
-      context: ../server
-    container_name: events-api
-    ports:
-      - 2424:2424
-    restart: always
     image: edvaljunior/application_docker_terraform_ec2_ansible:latest
+    container_name: events-api
+    entrypoint: ["npm", "start"]
+    restart: always
+    ports:
+      - "2424:2424"
     environment:
       DATABASE_URL: postgres://postgres:postgres@db:5432/meubanco
     depends_on:

@@ -32,15 +32,14 @@
         state: directory
         mode: '0755'
         owner: "{{ ansible_user }}"
-        group: "{{ ansible_user }}"
 
-    - name: Baixar Docker Compose CLI v2.36.0 para usuário
-      get_url:
-        url: "https://github.com/docker/compose/releases/download/v2.36.0/docker-compose-linux-{{ ansible_architecture }}"
-        dest: "{{ ansible_env.HOME }}/.docker/cli-plugins/docker-compose"
-        mode: '0755'
-        owner: "{{ ansible_user }}"
-        group: "{{ ansible_user }}"
+    - name: Baixar e instalar Docker Compose CLI (última versão)
+      become: true
+      shell: |
+        curl -L "https://github.com/docker/compose/releases/latest/download/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose
+        chmod +x /usr/local/bin/docker-compose
+      args:
+        creates: /usr/local/bin/docker-compose
 
     - name: Validar permissão executável
       file:
@@ -89,29 +88,33 @@
 
     - name: Garantir permissões de acesso e execução em /usr/src/app/
       file:
-      path: /usr/src/app/
-      state: directory
-      mode: '0755'
-      recurse: yes
-      owner: "{{ ansible_user }}"
-      group: "{{ ansible_user }}"
+        path: /usr/src/app/
+        state: directory
+        mode: '0755'
+        recurse: yes
+        owner: "{{ ansible_user }}"
+        group: "{{ ansible_user }}"
 
     - name: Garantir permissões de acesso e execução em /home/ec2-user/server
       file:
-      path: "/home/{{ ansible_user }}/server"
-      state: directory
-      mode: '0755'
-      recurse: yes
-      owner: "{{ ansible_user }}"
-      group: "{{ ansible_user }}"
+        path: "{{ project_path }}"
+        state: directory
+        mode: '0755'
+        recurse: yes
+        owner: "{{ ansible_user }}"
+        group: "{{ ansible_user }}"
 
     - name: Parar e remover container existente
-      shell: docker compose down
+      shell: docker-compose down
       args:
         chdir: "{{ project_path }}"
-      ignore_errors: true
+
+    - name: Baixa a imagem via Docker Compose
+      shell: docker-compose pull
+      args:
+        chdir: "{{ project_path }}"
 
     - name: Subir container via Docker Compose plugin
-      shell: docker compose up -d
+      shell: docker-compose up -d
       args:
         chdir: "{{ project_path }}"
