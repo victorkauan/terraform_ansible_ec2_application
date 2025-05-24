@@ -1,4 +1,5 @@
 import fastify from "fastify";
+import "dotenv/config";
 import fastifySwagger from "@fastify/swagger";
 import fastifySwaggerUI from "@fastify/swagger-ui";
 import {
@@ -14,6 +15,8 @@ import { getAttendeeBadge } from "./routes/get-attendee-badge";
 import { getEventAttendees } from "./routes/get-event-attendees";
 
 const app = fastify();
+
+const PORT = process.env.PORT ? parseInt(process.env.PORT, 10) : 3000;
 
 app.register(fastifySwagger, {
   swagger: {
@@ -41,6 +44,11 @@ app.register(getEvent);
 app.register(getAttendeeBadge);
 app.register(getEventAttendees);
 
-app.listen({ port: 2424, host: "0.0.0.0" }).then(() => {
-  console.log("Server is running on http://localhost:2424/docs");
+app.listen({ port: PORT, host: "0.0.0.0" }, (err, address) => {
+  if (err) {
+    console.error(err);
+    process.exit(1);
+  }
+  console.log(`Server is running at ${address}`);
+  console.log(`Swagger docs available at ${address}/docs`);
 });
