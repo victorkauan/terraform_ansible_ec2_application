@@ -20,10 +20,17 @@ resource "aws_security_group" "app_sg" {
   }
 
   ingress {
+    from_port   = 2424
+    to_port     = 2424
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
+  ingress {
     from_port   = 22
     to_port     = 22
     protocol    = "tcp"
-    cidr_blocks = ["177.37.13.10/32"]
+    cidr_blocks = ["177.37.136.126/32", "177.37.138.107/32"]
   }
 
   egress {
@@ -60,4 +67,9 @@ resource "aws_instance" "app" {
 output "ec2_public_ip" {
   description = "Public IP address of the EC2 instance"
   value       = aws_instance.app.public_ip
+}
+
+output "ec2_public_dns" {
+  description = "Public DNS name of the EC2 instance"
+  value       = aws_instance.app.public_dns
 }

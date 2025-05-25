@@ -48,6 +48,6 @@ app.register(registerForEvent);
 app.register(getEvent);
 app.register(getAttendeeBadge);
 app.register(getEventAttendees);
-app.listen({ port: 2424 }).then(() => {
+app.listen({ port: 2424, host: "0.0.0.0" }).then(() => {
   console.log("Server is running on http://localhost:2424/docs");
 });

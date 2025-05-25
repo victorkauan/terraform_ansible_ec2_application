@@ -19,7 +19,7 @@ export async function getEvent(app: FastifyInstance) {
               title: z.string().min(4),
               details: z.string().nullable(),
               maximunAttendees: z.number().int().positive().nullable(),
-              attendeesAmount: z.number().int().positive().nullable(),
+              attendeesAmount: z.number().int().nonnegative().nullable(),
             }),
           }),
           409: z.object({
@@ -58,7 +58,7 @@ export async function getEvent(app: FastifyInstance) {
           title: event.title,
           details: event.details,
           maximunAttendees: event.maximunAttendees,
-          attendeesAmount: event._count.attendees,
+          attendeesAmount: event._count?.attendees ?? 0,
         },
       });
     }
