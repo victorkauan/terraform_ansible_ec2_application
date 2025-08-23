@@ -1,0 +1,148 @@
+name: Infrastructure Management
+
+on:
+  workflow_dispatch:
+    inputs:
+      action:
+        description: 'Infrastructure action'
+        type: choice
+        options:
+          - create
+          - destroy
+        default: create
+        required: true
+      confirm_destroy:
+        description: 'Type "DESTROY" to confirm infrastructure destruction'
+        type: string
+        default: ''
+        required: false
+
+permissions:
+  contents: read
+  id-token: write
+
+env:
+  TF_VERSION: 1.5.7
+
+jobs:
+  infrastructure:
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main'
+    environment: production
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Validate destroy confirmation
+        if: github.event.inputs.action == 'destroy'
+        run: |
+          if [ "${{ github.event.inputs.confirm_destroy }}" != "DESTROY" ]; then
+            echo "❌ To destroy infrastructure, you must type 'DESTROY' in the confirmation field"
+            exit 1
+          fi
+          echo "✅ Destroy confirmation validated"
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ env.TF_VERSION }}
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: us-east-1
+
+      - name: Terraform Init
+        working-directory: ./terraform
+        run: terraform init
+
+      - name: Check existing infrastructure
+        working-directory: ./terraform
+        id: check-infra
+        run: |
+          # Verifica se já existe infraestrutura
+          INSTANCE_COUNT=$(aws ec2 describe-instances \
+            --filters "Name=tag:Name,Values=EC2 DevOps Pos Graduacao" \
+                    "Name=instance-state-name,Values=running,stopped,pending" \
+            --query "length(Reservations[].Instances[])" \
+            --output text)
+
+          echo "existing_instances=$INSTANCE_COUNT" >> $GITHUB_OUTPUT
+
+          if [ "$INSTANCE_COUNT" -gt 0 ]; then
+            echo "✅ Found $INSTANCE_COUNT existing EC2 instance(s)"
+          else
+            echo "❗ No existing EC2 instances found"
+          fi
+
+      - name: Terraform Plan
+        working-directory: ./terraform
+        run: |
+          ACTION="${{ github.event.inputs.action }}"
+          EXISTING="${{ steps.check-infra.outputs.existing_instances }}"
+
+          echo "🔍 Planning infrastructure $ACTION..."
+          echo "Existing instances: $EXISTING"
+
+          if [ "$ACTION" == "create" ] && [ "$EXISTING" -gt 0 ]; then
+            echo "⚠️  Infrastructure already exists. Running plan to check for changes..."
+          fi
+
+          terraform plan -var-file="terraform.tfvars" -out=tfplan
+
+          # Mostra o que será executado
+          echo ""
+          echo "📋 Terraform Plan Summary:"
+          terraform show -no-color tfplan | head -20
+
+      - name: Terraform Apply
+        if: github.event.inputs.action == 'create'
+        working-directory: ./terraform
+        run: |
+          echo "🚀 Creating/Updating infrastructure..."
+          terraform apply tfplan
+
+          # Obtém informações da instância criada/atualizada
+          EC2_IP=$(terraform output -raw ec2_public_ip 2>/dev/null || echo "N/A")
+          EC2_DNS=$(terraform output -raw ec2_public_dns 2>/dev/null || echo "N/A")
+
+          echo ""
+          echo "✅ Infrastructure operation completed!"
+          echo "📍 EC2 Public IP: $EC2_IP"
+          echo "🌐 EC2 Public DNS: $EC2_DNS"
+
+      - name: Terraform Destroy
+        if: github.event.inputs.action == 'destroy'
+        working-directory: ./terraform
+        run: |
+          echo "🗑️  Destroying infrastructure..."
+          echo "⚠️  This action will permanently delete all resources!"
+
+          terraform destroy -var-file="terraform.tfvars" -auto-approve
+
+          echo ""
+          echo "✅ Infrastructure destroyed successfully!"
+          echo "💰 AWS resources have been cleaned up to avoid charges"
+
+      - name: Summary
+        if: always()
+        run: |
+          ACTION="${{ github.event.inputs.action }}"
+
+          echo "## 🏗️ Infrastructure Management Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Action:** $ACTION" >> $GITHUB_STEP_SUMMARY
+          echo "**Time:** $(date)" >> $GITHUB_STEP_SUMMARY
+          echo "**Triggered by:** ${{ github.actor }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          if [ "$ACTION" == "create" ]; then
+            echo "🚀 **Infrastructure Created/Updated**" >> $GITHUB_STEP_SUMMARY
+            echo "Your EC2 instance is ready for deployments!" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "🗑️ **Infrastructure Destroyed**" >> $GITHUB_STEP_SUMMARY
+            echo "All AWS resources have been cleaned up." >> $GITHUB_STEP_SUMMARY
+          fi

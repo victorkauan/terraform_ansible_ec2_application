@@ -7,16 +7,31 @@ Este projeto demonstra a prática de DevOps utilizando Terraform, Ansible e Dock
 
 ## 🚀 CI/CD Pipeline
 
-O projeto inclui um pipeline completo de CI/CD utilizando GitHub Actions que automatiza:
+O projeto inclui **dois workflows independentes** para máxima eficiência e controle:
 
-- ✅ **Build & Test**: Compilação e testes da aplicação
-- 🔍 **Security Scan**: Análise de vulnerabilidades
-- 🐳 **Docker Build**: Construção e publicação de imagens
-- 🏗️ **Infrastructure**: Validação e provisionamento com Terraform
-- ⚙️ **Configuration**: Deploy automatizado com Ansible
-- 🧹 **Cleanup**: Limpeza automática de recursos
+### 🏗️ **Infrastructure Management**
 
-Para mais detalhes, consulte a [documentação do CI/CD](.github/README.md).
+- ✅ **Criação/Destruição** de recursos AWS
+- ✅ **Execução manual** quando necessário
+- ✅ **Proteções** contra destruição acidental
+- ✅ **Economia** de custos com limpeza automática
+
+### 🚀 **CI/CD Pipeline**
+
+- ✅ **Build & Test** - Compilação e testes da aplicação
+- 🔍 **Security Scan** - Análise de vulnerabilidades
+- 🐳 **Docker Build** - Construção e publicação de imagens
+- 🏗️ **Infrastructure** - Validação Terraform/Ansible
+- ⚙️ **Deploy** - Deploy na EC2 existente (não cria nova)
+- 🧹 **Notification** - Status do deployment
+
+### 📋 **Como Usar:**
+
+1. **Primeira vez:** Execute "Infrastructure Management" → `create`
+2. **Deploy:** Push para `main` → Deploy automático
+3. **Limpeza:** Execute "Infrastructure Management" → `destroy`
+
+Para detalhes completos, consulte o [**Guia dos Workflows**](.github/WORKFLOWS_GUIDE.md).
 
 ## Tecnologias Utilizadas
 

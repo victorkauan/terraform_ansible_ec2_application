@@ -239,14 +239,12 @@ jobs:
     if: (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/feat/initial_files_CI_CD') && github.event_name == 'push'
     environment: production
 
+    outputs:
+      public_ip: ${{ steps.ec2-ip.outputs.public_ip }}
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
-
-      - name: Setup Terraform
-        uses: hashicorp/setup-terraform@v3
-        with:
-          terraform_version: ${{ env.TF_VERSION }}
 
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
@@ -255,23 +253,54 @@ jobs:
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: us-east-1
 
-      - name: Terraform Init
-        working-directory: ./terraform
-        run: terraform init
-
-      - name: Terraform Plan
-        working-directory: ./terraform
-        run: terraform plan -var-file="terraform.tfvars" -out=tfplan
-
-      - name: Terraform Apply
-        working-directory: ./terraform
-        run: terraform apply tfplan
-
-      - name: Get EC2 Public IP
-        working-directory: ./terraform
+      - name: Get existing EC2 Public IP
         id: ec2-ip
         run: |
-          echo "public_ip=$(terraform output -raw ec2_public_ip)" >> $GITHUB_OUTPUT
+          echo "🔍 Searching for existing EC2 instance..."
+
+          # Busca instância EC2 existente com tag específica
+          INSTANCE_DATA=$(aws ec2 describe-instances \
+            --filters "Name=tag:Name,Values=EC2 DevOps Pos Graduacao" \
+                    "Name=instance-state-name,Values=running" \
+            --query "Reservations[0].Instances[0].{PublicIp:PublicIpAddress,InstanceId:InstanceId,State:State.Name}" \
+            --output json)
+
+          PUBLIC_IP=$(echo $INSTANCE_DATA | jq -r '.PublicIp // empty')
+          INSTANCE_ID=$(echo $INSTANCE_DATA | jq -r '.InstanceId // empty')
+          STATE=$(echo $INSTANCE_DATA | jq -r '.State // empty')
+
+          if [ -z "$PUBLIC_IP" ] || [ "$PUBLIC_IP" == "null" ]; then
+            echo "❌ No running EC2 instance found with tag 'EC2 DevOps Pos Graduacao'"
+            echo "💡 Please run the Infrastructure Management workflow first to create the EC2 instance"
+            echo ""
+            echo "Steps to create infrastructure:"
+            echo "1. Go to Actions tab"
+            echo "2. Select 'Infrastructure Management' workflow"
+            echo "3. Click 'Run workflow'"
+            echo "4. Choose 'create' action"
+            echo "5. Run the workflow"
+            exit 1
+          fi
+
+          echo "✅ Found running EC2 instance:"
+          echo "   Instance ID: $INSTANCE_ID"
+          echo "   Public IP: $PUBLIC_IP"
+          echo "   State: $STATE"
+
+          echo "public_ip=$PUBLIC_IP" >> $GITHUB_OUTPUT
+          echo "instance_id=$INSTANCE_ID" >> $GITHUB_OUTPUT
+
+      - name: Verify EC2 instance accessibility
+        run: |
+          echo "🔗 Testing connectivity to EC2 instance..."
+
+          # Testa se a instância responde na porta 22 (SSH)
+          if timeout 10 bash -c "cat < /dev/null > /dev/tcp/${{ steps.ec2-ip.outputs.public_ip }}/22"; then
+            echo "✅ EC2 instance is accessible on SSH port 22"
+          else
+            echo "⚠️  EC2 instance may not be fully ready yet (SSH port not responding)"
+            echo "   Continuing with deployment - Ansible will wait for readiness"
+          fi
 
       - name: Setup Python for Ansible
         uses: actions/setup-python@v4
@@ -293,28 +322,28 @@ jobs:
         run: |
           # Cria diretório SSH
           mkdir -p ~/.ssh
-          
+
           # Verifica se a chave SSH existe
           if [ -z "${{ secrets.EC2_SSH_PRIVATE_KEY }}" ]; then
             echo "❌ EC2_SSH_PRIVATE_KEY secret not found!"
             exit 1
           fi
-          
+
           # Cria arquivo de chave privada
           echo "${{ secrets.EC2_SSH_PRIVATE_KEY }}" > ~/.ssh/id_rsa
-          
+
           # Define permissões corretas
           chmod 600 ~/.ssh/id_rsa
-          
+
           # Verifica se a chave foi criada corretamente
           if ! ssh-keygen -y -f ~/.ssh/id_rsa > /dev/null 2>&1; then
             echo "❌ Invalid SSH private key!"
             exit 1
           fi
-          
+
           # Adiciona host às known_hosts
           ssh-keyscan -H ${{ steps.ec2-ip.outputs.public_ip }} >> ~/.ssh/known_hosts
-          
+
           echo "✅ SSH key setup completed"
 
       - name: Wait for EC2 instance to be ready
