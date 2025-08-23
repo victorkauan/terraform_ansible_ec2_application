@@ -232,15 +232,148 @@ jobs:
         run: ansible-lint playbook.yml
         continue-on-error: true
 
+  # Job de Auto-provisioning de Infraestrutura
+  auto-infrastructure:
+    runs-on: ubuntu-latest
+    needs: [terraform-validate, ansible-validate]
+    if: (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/feat/initial_files_CI_CD') && github.event_name == 'push'
+
+    outputs:
+      infrastructure_exists: ${{ steps.check-infra.outputs.exists }}
+      public_ip: ${{ steps.get-ip.outputs.public_ip }}
+      created_new: ${{ steps.create-infra.outputs.created }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ env.TF_VERSION }}
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: us-east-1
+
+      - name: Check existing infrastructure
+        id: check-infra
+        run: |
+          echo "🔍 Checking for existing EC2 infrastructure..."
+
+          # Busca instância EC2 existente
+          INSTANCE_DATA=$(aws ec2 describe-instances \
+            --filters "Name=tag:Name,Values=EC2 DevOps Pos Graduacao" \
+                    "Name=instance-state-name,Values=running,stopped,pending" \
+            --query "Reservations[0].Instances[0].{PublicIp:PublicIpAddress,InstanceId:InstanceId,State:State.Name}" \
+            --output json 2>/dev/null || echo '{}')
+
+          INSTANCE_ID=$(echo $INSTANCE_DATA | jq -r '.InstanceId // empty')
+          PUBLIC_IP=$(echo $INSTANCE_DATA | jq -r '.PublicIp // empty')
+          STATE=$(echo $INSTANCE_DATA | jq -r '.State // empty')
+
+          if [ -n "$INSTANCE_ID" ] && [ "$INSTANCE_ID" != "null" ]; then
+            echo "✅ Found existing EC2 instance:"
+            echo "   Instance ID: $INSTANCE_ID"
+            echo "   Public IP: $PUBLIC_IP"
+            echo "   State: $STATE"
+            echo "exists=true" >> $GITHUB_OUTPUT
+            echo "instance_id=$INSTANCE_ID" >> $GITHUB_OUTPUT
+            echo "public_ip=$PUBLIC_IP" >> $GITHUB_OUTPUT
+            echo "state=$STATE" >> $GITHUB_OUTPUT
+          else
+            echo "❌ No existing EC2 instance found"
+            echo "🚀 Will create new infrastructure automatically"
+            echo "exists=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Initialize Terraform
+        if: steps.check-infra.outputs.exists == 'false'
+        working-directory: ./terraform
+        run: |
+          echo "🔧 Initializing Terraform..."
+          terraform init
+
+      - name: Create Infrastructure Automatically
+        id: create-infra
+        if: steps.check-infra.outputs.exists == 'false'
+        working-directory: ./terraform
+        run: |
+          echo "🏗️ Creating infrastructure automatically..."
+          echo "This is required for the first deployment or after infrastructure cleanup"
+          echo ""
+
+          # Plan
+          echo "📋 Planning infrastructure..."
+          terraform plan -var-file="terraform.tfvars" -out=tfplan
+
+          # Apply
+          echo "🚀 Applying infrastructure..."
+          terraform apply tfplan
+
+          # Get outputs
+          PUBLIC_IP=$(terraform output -raw ec2_public_ip)
+          echo "✅ Infrastructure created successfully!"
+          echo "📍 New EC2 Public IP: $PUBLIC_IP"
+
+          echo "created=true" >> $GITHUB_OUTPUT
+          echo "public_ip=$PUBLIC_IP" >> $GITHUB_OUTPUT
+
+      - name: Get IP from existing infrastructure
+        id: get-ip
+        if: steps.check-infra.outputs.exists == 'true'
+        run: |
+          # Se infraestrutura existe, usa IP existente
+          if [ "${{ steps.check-infra.outputs.state }}" == "running" ]; then
+            echo "public_ip=${{ steps.check-infra.outputs.public_ip }}" >> $GITHUB_OUTPUT
+          else
+            echo "⚠️ Instance exists but is not running (state: ${{ steps.check-infra.outputs.state }})"
+            echo "Starting instance..."
+            aws ec2 start-instances --instance-ids ${{ steps.check-infra.outputs.instance_id }}
+            
+            # Aguarda instância ficar running
+            echo "Waiting for instance to be running..."
+            aws ec2 wait instance-running --instance-ids ${{ steps.check-infra.outputs.instance_id }}
+            
+            # Obtém novo IP público
+            NEW_IP=$(aws ec2 describe-instances \
+              --instance-ids ${{ steps.check-infra.outputs.instance_id }} \
+              --query "Reservations[0].Instances[0].PublicIpAddress" \
+              --output text)
+            
+            echo "✅ Instance started with IP: $NEW_IP"
+            echo "public_ip=$NEW_IP" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Infrastructure Summary
+        run: |
+          echo "## 🏗️ Infrastructure Status" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          if [ "${{ steps.check-infra.outputs.exists }}" == "true" ]; then
+            echo "**Status:** Using existing infrastructure ✅" >> $GITHUB_STEP_SUMMARY
+            echo "**Instance ID:** ${{ steps.check-infra.outputs.instance_id }}" >> $GITHUB_STEP_SUMMARY
+            echo "**Previous State:** ${{ steps.check-infra.outputs.state }}" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "**Status:** Created new infrastructure 🚀" >> $GITHUB_STEP_SUMMARY
+            echo "**Action:** Automatic provisioning" >> $GITHUB_STEP_SUMMARY
+          fi
+
+          echo "**Public IP:** ${{ steps.get-ip.outputs.public_ip || steps.create-infra.outputs.public_ip }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Ready for deployment:** ✅" >> $GITHUB_STEP_SUMMARY
+
   # Job de Deploy
   deploy:
     runs-on: ubuntu-latest
-    needs: [docker-build, terraform-validate, ansible-validate]
+    needs: [docker-build, auto-infrastructure]
     if: (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/feat/initial_files_CI_CD') && github.event_name == 'push'
     environment: production
 
     outputs:
-      public_ip: ${{ steps.ec2-ip.outputs.public_ip }}
+      public_ip: ${{ needs.auto-infrastructure.outputs.public_ip }}
 
     steps:
       - name: Checkout code
@@ -253,53 +386,26 @@ jobs:
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: us-east-1
 
-      - name: Get existing EC2 Public IP
+      - name: Retrieve EC2 IP from Auto-Infrastructure
         id: ec2-ip
         run: |
-          echo "🔍 Searching for existing EC2 instance..."
-
-          # Busca instância EC2 existente com tag específica
-          INSTANCE_DATA=$(aws ec2 describe-instances \
-            --filters "Name=tag:Name,Values=EC2 DevOps Pos Graduacao" \
-                    "Name=instance-state-name,Values=running" \
-            --query "Reservations[0].Instances[0].{PublicIp:PublicIpAddress,InstanceId:InstanceId,State:State.Name}" \
-            --output json)
-
-          PUBLIC_IP=$(echo $INSTANCE_DATA | jq -r '.PublicIp // empty')
-          INSTANCE_ID=$(echo $INSTANCE_DATA | jq -r '.InstanceId // empty')
-          STATE=$(echo $INSTANCE_DATA | jq -r '.State // empty')
+          # Usa IP da infraestrutura criada automaticamente
+          PUBLIC_IP="${{ needs.auto-infrastructure.outputs.public_ip }}"
 
           if [ -z "$PUBLIC_IP" ] || [ "$PUBLIC_IP" == "null" ]; then
-            echo "❌ No running EC2 instance found with tag 'EC2 DevOps Pos Graduacao'"
-            echo "💡 Please run the Infrastructure Management workflow first to create the EC2 instance"
-            echo ""
-            echo "Steps to create infrastructure:"
-            echo "1. Go to Actions tab"
-            echo "2. Select 'Infrastructure Management' workflow"
-            echo "3. Click 'Run workflow'"
-            echo "4. Choose 'create' action"
-            echo "5. Run the workflow"
+            echo "❌ Failed to get EC2 IP from auto-infrastructure job"
+            echo "This should not happen if auto-infrastructure job completed successfully"
             exit 1
           fi
 
-          echo "✅ Found running EC2 instance:"
-          echo "   Instance ID: $INSTANCE_ID"
-          echo "   Public IP: $PUBLIC_IP"
-          echo "   State: $STATE"
-
+          echo "✅ Using EC2 instance with IP: $PUBLIC_IP"
           echo "public_ip=$PUBLIC_IP" >> $GITHUB_OUTPUT
-          echo "instance_id=$INSTANCE_ID" >> $GITHUB_OUTPUT
 
-      - name: Verify EC2 instance accessibility
-        run: |
-          echo "🔗 Testing connectivity to EC2 instance..."
-
-          # Testa se a instância responde na porta 22 (SSH)
-          if timeout 10 bash -c "cat < /dev/null > /dev/tcp/${{ steps.ec2-ip.outputs.public_ip }}/22"; then
-            echo "✅ EC2 instance is accessible on SSH port 22"
+          # Informações do deployment
+          if [ "${{ needs.auto-infrastructure.outputs.created_new }}" == "true" ]; then
+            echo "🚀 Deploying to newly created infrastructure"
           else
-            echo "⚠️  EC2 instance may not be fully ready yet (SSH port not responding)"
-            echo "   Continuing with deployment - Ansible will wait for readiness"
+            echo "🔄 Deploying to existing infrastructure"
           fi
 
       - name: Setup Python for Ansible
