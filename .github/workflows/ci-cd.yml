@@ -6,6 +6,11 @@ on:
   pull_request:
     branches: [main]
 
+permissions:
+  contents: read
+  security-events: write
+  actions: read
+
 env:
   DOCKER_REGISTRY: ghcr.io
   IMAGE_NAME: ${{ github.repository }}/server
