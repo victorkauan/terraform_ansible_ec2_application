@@ -43,7 +43,7 @@ jobs:
       - name: Run database migrations
         working-directory: ./server
         env:
-          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          DATABASE_URL: ${{ vars.DATABASE_URL }}
         run: npx prisma migrate deploy
 
       - name: Build application
