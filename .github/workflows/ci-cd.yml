@@ -240,7 +240,7 @@ jobs:
 
     outputs:
       infrastructure_exists: ${{ steps.check-infra.outputs.exists }}
-      public_ip: ${{ steps.get-ip.outputs.public_ip }}
+      public_ip: ${{ steps.final-ip.outputs.public_ip }}
       created_new: ${{ steps.create-infra.outputs.created }}
 
     steps:
@@ -328,6 +328,7 @@ jobs:
         run: |
           # Se infraestrutura existe, usa IP existente
           if [ "${{ steps.check-infra.outputs.state }}" == "running" ]; then
+            echo "✅ Instance is running, using existing IP"
             echo "public_ip=${{ steps.check-infra.outputs.public_ip }}" >> $GITHUB_OUTPUT
           else
             echo "⚠️ Instance exists but is not running (state: ${{ steps.check-infra.outputs.state }})"
@@ -348,6 +349,31 @@ jobs:
             echo "public_ip=$NEW_IP" >> $GITHUB_OUTPUT
           fi
 
+      - name: Set final IP output
+        id: final-ip
+        run: |
+          if [ "${{ steps.check-infra.outputs.exists }}" == "false" ]; then
+            # Nova infraestrutura criada
+            FINAL_IP="${{ steps.create-infra.outputs.public_ip }}"
+            echo "🚀 Using IP from newly created infrastructure: $FINAL_IP"
+          else
+            # Infraestrutura existente
+            FINAL_IP="${{ steps.get-ip.outputs.public_ip }}"
+            echo "🔄 Using IP from existing infrastructure: $FINAL_IP"
+          fi
+
+          if [ -z "$FINAL_IP" ] || [ "$FINAL_IP" == "null" ]; then
+            echo "❌ Failed to determine final IP address"
+            echo "Debug info:"
+            echo "  exists: ${{ steps.check-infra.outputs.exists }}"
+            echo "  create-infra IP: ${{ steps.create-infra.outputs.public_ip }}"
+            echo "  get-ip IP: ${{ steps.get-ip.outputs.public_ip }}"
+            exit 1
+          fi
+
+          echo "✅ Final IP determined: $FINAL_IP"
+          echo "public_ip=$FINAL_IP" >> $GITHUB_OUTPUT
+
       - name: Infrastructure Summary
         run: |
           echo "## 🏗️ Infrastructure Status" >> $GITHUB_STEP_SUMMARY
@@ -362,7 +388,7 @@ jobs:
             echo "**Action:** Automatic provisioning" >> $GITHUB_STEP_SUMMARY
           fi
 
-          echo "**Public IP:** ${{ steps.get-ip.outputs.public_ip || steps.create-infra.outputs.public_ip }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Public IP:** ${{ steps.final-ip.outputs.public_ip }}" >> $GITHUB_STEP_SUMMARY
           echo "**Ready for deployment:** ✅" >> $GITHUB_STEP_SUMMARY
 
   # Job de Deploy
@@ -389,12 +415,28 @@ jobs:
       - name: Retrieve EC2 IP from Auto-Infrastructure
         id: ec2-ip
         run: |
+          # Debug: Mostra todos os outputs do job anterior
+          echo "🔍 Debug - Auto-infrastructure outputs:"
+          echo "   infrastructure_exists: ${{ needs.auto-infrastructure.outputs.infrastructure_exists }}"
+          echo "   public_ip: ${{ needs.auto-infrastructure.outputs.public_ip }}"
+          echo "   created_new: ${{ needs.auto-infrastructure.outputs.created_new }}"
+
           # Usa IP da infraestrutura criada automaticamente
           PUBLIC_IP="${{ needs.auto-infrastructure.outputs.public_ip }}"
 
-          if [ -z "$PUBLIC_IP" ] || [ "$PUBLIC_IP" == "null" ]; then
+          if [ -z "$PUBLIC_IP" ] || [ "$PUBLIC_IP" == "null" ] || [ "$PUBLIC_IP" == "" ]; then
             echo "❌ Failed to get EC2 IP from auto-infrastructure job"
-            echo "This should not happen if auto-infrastructure job completed successfully"
+            echo "   Expected: Valid IP address"
+            echo "   Received: '$PUBLIC_IP'"
+            echo ""
+            echo "🔍 This indicates an issue with the auto-infrastructure job."
+            echo "   Please check the auto-infrastructure job logs for errors."
+            exit 1
+          fi
+
+          # Validação adicional do formato do IP
+          if [[ ! $PUBLIC_IP =~ ^[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}$ ]]; then
+            echo "❌ Invalid IP format received: '$PUBLIC_IP'"
             exit 1
           fi
 
