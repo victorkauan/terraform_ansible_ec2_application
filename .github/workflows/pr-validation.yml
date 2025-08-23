@@ -1,0 +1,112 @@
+name: PR Validation
+
+on:
+  pull_request:
+    branches: [main]
+
+env:
+  TF_VERSION: 1.5.7
+  ANSIBLE_VERSION: 8.0.0
+
+jobs:
+  # Job de validação rápida para PRs
+  validate-pr:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: server/package-lock.json
+
+      - name: Install dependencies
+        working-directory: ./server
+        run: npm ci
+
+      - name: TypeScript type check
+        working-directory: ./server
+        run: npx tsc --noEmit
+
+      - name: Build check
+        working-directory: ./server
+        run: npm run build
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ env.TF_VERSION }}
+
+      - name: Terraform Format Check
+        working-directory: ./terraform
+        run: terraform fmt -check -recursive
+
+      - name: Terraform Validate
+        working-directory: ./terraform
+        run: |
+          terraform init -backend=false
+          terraform validate
+
+      - name: Setup Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+
+      - name: Validate Ansible
+        working-directory: ./ansible
+        run: |
+          pip install ansible==${{ env.ANSIBLE_VERSION }}
+          ansible-playbook --syntax-check playbook.yml
+
+  # Job de análise de mudanças
+  analyze-changes:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Get changed files
+        id: changed-files
+        uses: tj-actions/changed-files@v40
+        with:
+          files_yaml: |
+            server:
+              - server/**
+            terraform:
+              - terraform/**
+            ansible:
+              - ansible/**
+            docker:
+              - server/Dockerfile
+              - ansible/docker-compose-server.yml
+
+      - name: Analyze impact
+        run: |
+          echo "## 📋 Change Analysis" >> $GITHUB_STEP_SUMMARY
+
+          if [ "${{ steps.changed-files.outputs.server_any_changed }}" == "true" ]; then
+            echo "🔧 **Server code changes detected**" >> $GITHUB_STEP_SUMMARY
+            echo "Files: ${{ steps.changed-files.outputs.server_all_changed_files }}" >> $GITHUB_STEP_SUMMARY
+          fi
+
+          if [ "${{ steps.changed-files.outputs.terraform_any_changed }}" == "true" ]; then
+            echo "🏗️ **Infrastructure changes detected**" >> $GITHUB_STEP_SUMMARY
+            echo "Files: ${{ steps.changed-files.outputs.terraform_all_changed_files }}" >> $GITHUB_STEP_SUMMARY
+          fi
+
+          if [ "${{ steps.changed-files.outputs.ansible_any_changed }}" == "true" ]; then
+            echo "⚙️ **Configuration changes detected**" >> $GITHUB_STEP_SUMMARY
+            echo "Files: ${{ steps.changed-files.outputs.ansible_all_changed_files }}" >> $GITHUB_STEP_SUMMARY
+          fi
+
+          if [ "${{ steps.changed-files.outputs.docker_any_changed }}" == "true" ]; then
+            echo "🐳 **Docker changes detected**" >> $GITHUB_STEP_SUMMARY
+            echo "Files: ${{ steps.changed-files.outputs.docker_all_changed_files }}" >> $GITHUB_STEP_SUMMARY
+          fi

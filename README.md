@@ -1,6 +1,22 @@
 # terraform_ansible_ec2_application
 
+[![CI/CD Pipeline](https://github.com/PedroBarros3421/terraform_ansible_ec2_application/actions/workflows/ci-cd.yml/badge.svg)](https://github.com/PedroBarros3421/terraform_ansible_ec2_application/actions/workflows/ci-cd.yml)
+[![Security Scan](https://github.com/PedroBarros3421/terraform_ansible_ec2_application/actions/workflows/pr-validation.yml/badge.svg)](https://github.com/PedroBarros3421/terraform_ansible_ec2_application/actions/workflows/pr-validation.yml)
+
 Este projeto demonstra a prática de DevOps utilizando Terraform, Ansible e Docker para provisionar e configurar uma aplicação em uma instância EC2 na AWS. Ele foi desenvolvido como parte da Pós-graduação em Engenharia de Software com DevOps - UNIFOR.
+
+## 🚀 CI/CD Pipeline
+
+O projeto inclui um pipeline completo de CI/CD utilizando GitHub Actions que automatiza:
+
+- ✅ **Build & Test**: Compilação e testes da aplicação
+- 🔍 **Security Scan**: Análise de vulnerabilidades
+- 🐳 **Docker Build**: Construção e publicação de imagens
+- 🏗️ **Infrastructure**: Validação e provisionamento com Terraform
+- ⚙️ **Configuration**: Deploy automatizado com Ansible
+- 🧹 **Cleanup**: Limpeza automática de recursos
+
+Para mais detalhes, consulte a [documentação do CI/CD](.github/README.md).
 
 ## Tecnologias Utilizadas
 
