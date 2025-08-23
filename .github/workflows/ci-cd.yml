@@ -232,7 +232,7 @@ jobs:
         run: ansible-lint playbook.yml
         continue-on-error: true
 
-  # Job de Deploy (apenas para branch main)
+  # Job de Deploy
   deploy:
     runs-on: ubuntu-latest
     needs: [docker-build, terraform-validate, ansible-validate]
