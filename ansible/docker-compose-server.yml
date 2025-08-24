@@ -19,7 +19,7 @@ services:
     entrypoint: ['npm', 'start']
     restart: always
     ports:
-      - '2424:3000'
+      - '2424:2424'
     environment:
       DATABASE_URL: postgres://postgres:postgres@db:5432/meubanco
     depends_on:
