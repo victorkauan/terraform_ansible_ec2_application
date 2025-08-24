@@ -16,7 +16,7 @@ import { getEventAttendees } from "./routes/get-event-attendees";
 
 const app = fastify();
 
-const PORT = process.env.PORT ? parseInt(process.env.PORT, 10) : 2424;
+const PORT = process.env.PORT ? parseInt(process.env.PORT, 10) : 3000;
 
 app.register(fastifySwagger, {
   swagger: {
