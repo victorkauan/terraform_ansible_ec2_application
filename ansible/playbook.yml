@@ -26,64 +26,75 @@
         state: started
         enabled: yes
 
-    - name: Criar diretório de CLI plugins no home do usuário
+    - name: Criar diretório de CLI plugins para Docker Compose
       file:
-        path: "{{ ansible_env.HOME }}/.docker/cli-plugins"
+        path: '/root/.docker/cli-plugins'
         state: directory
         mode: '0755'
-        owner: "{{ ansible_user }}"
 
-    - name: Baixar e instalar Docker Compose CLI (última versão)
-      become: true
+    - name: Baixar e instalar Docker Compose v2 (CLI plugin)
       shell: |
-        curl -L "https://github.com/docker/compose/releases/latest/download/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose
-        chmod +x /usr/local/bin/docker-compose
-      args:
-        creates: /usr/local/bin/docker-compose
+        # Instala Docker Compose v2 como plugin CLI
+        DOCKER_COMPOSE_VERSION=$(curl -s https://api.github.com/repos/docker/compose/releases/latest | grep '"tag_name":' | cut -d'"' -f4)
+        curl -L "https://github.com/docker/compose/releases/download/${DOCKER_COMPOSE_VERSION}/docker-compose-$(uname -s)-$(uname -m)" -o /root/.docker/cli-plugins/docker-compose
+        chmod +x /root/.docker/cli-plugins/docker-compose
 
-    - name: Validar permissão executável
+        # Também cria link simbólico para compatibilidade
+        ln -sf /root/.docker/cli-plugins/docker-compose /usr/local/bin/docker-compose
+      args:
+        creates: /root/.docker/cli-plugins/docker-compose
+
+    - name: Validar instalação do Docker Compose
       file:
-        path: "{{ ansible_env.HOME }}/.docker/cli-plugins/docker-compose"
+        path: '/root/.docker/cli-plugins/docker-compose'
         mode: '0755'
-        owner: "{{ ansible_user }}"
-        group: "{{ ansible_user }}"
+        state: file
+
+    - name: Verificar versão do Docker Compose
+      shell: docker compose version
+      register: docker_compose_version
+
+    - name: Mostrar versão do Docker Compose
+      debug:
+        msg: 'Docker Compose instalado: {{ docker_compose_version.stdout }}'
 
     - name: Adicionar usuário ao grupo docker
       user:
-        name: "{{ ansible_user }}"
+        name: '{{ ansible_user }}'
         groups: docker
         append: yes
 
     - name: Criar arquivo de validação
       copy:
-        dest: "/home/{{ ansible_user }}/validation_ansible.txt"
+        dest: '/home/{{ ansible_user }}/validation_ansible.txt'
         content: "Ansible executado com sucesso em {{ ansible_date_time.date }} {{ ansible_date_time.time }}\n"
-        owner: "{{ ansible_user }}"
-        group: "{{ ansible_user }}"
+        owner: '{{ ansible_user }}'
+        group: '{{ ansible_user }}'
         mode: '0644'
 
 - name: Deploy Container via Docker Compose
   hosts: aws_ec2
   become: true
   vars:
-    project_path: "/home/{{ ansible_user }}/server"
-    docker_image: "edvaljunior/application_docker_terraform_ec2_ansible/general:latest"
+    project_path: '/home/{{ ansible_user }}/server'
+    # Usa a imagem passada via extra-vars ou fallback para uma padrão
+    container_image: "{{ docker_image | default('ghcr.io/pedrobarros3421/terraform_ansible_ec2_application/server:latest') }}"
     container_name: events-api
   tasks:
     - name: Criar diretório do projeto
       file:
-        path: "{{ project_path }}"
+        path: '{{ project_path }}'
         state: directory
         mode: '0755'
-        owner: "{{ ansible_user }}"
-        group: "{{ ansible_user }}"
+        owner: '{{ ansible_user }}'
+        group: '{{ ansible_user }}'
 
     - name: Copiar arquivo docker-compose.yml
       copy:
         src: docker-compose-server.yml
-        dest: "{{ project_path }}/docker-compose.yml"
-        owner: "{{ ansible_user }}"
-        group: "{{ ansible_user }}"
+        dest: '{{ project_path }}/docker-compose.yml'
+        owner: '{{ ansible_user }}'
+        group: '{{ ansible_user }}'
         mode: '0644'
 
     - name: Garantir permissões de acesso e execução em /usr/src/app/
@@ -92,29 +103,56 @@
         state: directory
         mode: '0755'
         recurse: yes
-        owner: "{{ ansible_user }}"
-        group: "{{ ansible_user }}"
+        owner: '{{ ansible_user }}'
+        group: '{{ ansible_user }}'
 
     - name: Garantir permissões de acesso e execução em /home/ec2-user/server
       file:
-        path: "{{ project_path }}"
+        path: '{{ project_path }}'
         state: directory
         mode: '0755'
         recurse: yes
-        owner: "{{ ansible_user }}"
-        group: "{{ ansible_user }}"
+        owner: '{{ ansible_user }}'
+        group: '{{ ansible_user }}'
 
     - name: Parar e remover container existente
-      shell: docker-compose down
+      shell: docker compose down
       args:
-        chdir: "{{ project_path }}"
+        chdir: '{{ project_path }}'
+      environment:
+        DOCKER_IMAGE: '{{ container_image }}'
+      ignore_errors: true
 
     - name: Baixa a imagem via Docker Compose
-      shell: docker-compose pull
+      shell: docker compose pull
       args:
-        chdir: "{{ project_path }}"
+        chdir: '{{ project_path }}'
+      environment:
+        DOCKER_IMAGE: '{{ container_image }}'
 
-    - name: Subir container via Docker Compose plugin
-      shell: docker-compose up -d
+    - name: Subir container via Docker Compose v2
+      shell: docker compose up -d
       args:
-        chdir: "{{ project_path }}"
+        chdir: '{{ project_path }}'
+      environment:
+        DOCKER_IMAGE: '{{ container_image }}'
+
+    - name: Verificar status dos containers
+      shell: docker compose ps
+      args:
+        chdir: '{{ project_path }}'
+      register: container_status
+
+    - name: Mostrar status dos containers
+      debug:
+        msg: '{{ container_status.stdout }}'
+
+    - name: Aguardar aplicação ficar disponível
+      uri:
+        url: 'http://localhost:2424/docs'
+        method: GET
+        status_code: 200
+      retries: 10
+      delay: 30
+      register: health_check
+      until: health_check.status == 200
