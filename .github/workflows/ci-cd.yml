@@ -460,11 +460,24 @@ jobs:
           pip install ansible==${{ env.ANSIBLE_VERSION }}
           pip install boto3 botocore
 
-      - name: Update Ansible inventory with EC2 IP
+      - name: Create dynamic Ansible inventory
         working-directory: ./ansible
         run: |
-          # Atualiza o inventory com o IP da instância EC2
-          sed -i "s/ansible_host=.*/ansible_host=${{ steps.ec2-ip.outputs.public_ip }}/" inventory.yml
+          echo "📝 Creating dynamic inventory with EC2 IP: ${{ steps.ec2-ip.outputs.public_ip }}"
+
+          # Cria inventory dinâmico com o IP correto
+          cat > inventory.yml << EOF
+          all:
+            hosts:
+              aws_ec2:
+                ansible_host: ${{ steps.ec2-ip.outputs.public_ip }}
+                ansible_user: ec2-user
+                ansible_ssh_private_key_file: ~/.ssh/id_rsa
+                ansible_ssh_common_args: '-o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null'
+          EOF
+
+          echo "✅ Dynamic inventory created:"
+          cat inventory.yml
 
       - name: Setup SSH key
         run: |
@@ -496,15 +509,29 @@ jobs:
 
       - name: Wait for EC2 instance to be ready
         run: |
-          echo "Waiting for EC2 instance to be ready..."
+          echo "🔗 Waiting for EC2 instance to be ready..."
+          echo "   Target: ec2-user@${{ steps.ec2-ip.outputs.public_ip }}"
+          echo "   Testing SSH connectivity..."
+
           for i in {1..30}; do
-            if ssh -o ConnectTimeout=10 -i ~/.ssh/id_rsa ec2-user@${{ steps.ec2-ip.outputs.public_ip }} "echo 'Instance ready'"; then
-              echo "Instance is ready!"
+            echo "Attempt $i/30: Testing SSH connection..."
+            if ssh -o ConnectTimeout=10 -o StrictHostKeyChecking=no -i ~/.ssh/id_rsa ec2-user@${{ steps.ec2-ip.outputs.public_ip }} "echo 'Instance ready'" 2>/dev/null; then
+              echo "✅ Instance is ready!"
               break
             fi
-            echo "Attempt $i failed, retrying in 30 seconds..."
+            echo "   Connection failed, retrying in 30 seconds..."
             sleep 30
           done
+
+      - name: Test Ansible connectivity
+        working-directory: ./ansible
+        run: |
+          echo "🧪 Testing Ansible connectivity..."
+          echo "Inventory content:"
+          cat inventory.yml
+          echo ""
+          echo "Testing connection:"
+          ansible all -i inventory.yml -m ping -v
 
       - name: Deploy with Ansible
         working-directory: ./ansible
