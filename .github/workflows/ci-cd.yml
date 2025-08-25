@@ -2,7 +2,7 @@ name: CI/CD Pipeline
 
 on:
   push:
-    branches: [main, feat/initial_files_CI_CD]
+    branches: [main]
   pull_request:
     branches: [main]
 
@@ -236,7 +236,7 @@ jobs:
   auto-infrastructure:
     runs-on: ubuntu-latest
     needs: [terraform-validate, ansible-validate]
-    if: (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/feat/initial_files_CI_CD') && github.event_name == 'push'
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
 
     outputs:
       infrastructure_exists: ${{ steps.check-infra.outputs.exists }}
@@ -395,7 +395,7 @@ jobs:
   deploy:
     runs-on: ubuntu-latest
     needs: [docker-build, auto-infrastructure]
-    if: (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/feat/initial_files_CI_CD') && github.event_name == 'push'
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
     environment: production
 
     outputs:
