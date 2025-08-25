@@ -43,24 +43,6 @@ git push origin main
 - **Validação rápida** para Pull Requests
 - **Quality gates** antes do merge
 
-### 🎯 **Como Usar**
-
-#### **Setup Inicial (Uma vez):**
-
-1. Configure secrets no GitHub:
-   ```
-   AWS_ACCESS_KEY_ID
-   AWS_SECRET_ACCESS_KEY
-   EC2_SSH_PRIVATE_KEY
-   ```
-
-#### **Desenvolvimento Normal:**
-
-2. **Faça commits normalmente** → Pipeline executa automaticamente
-3. **Aplicação disponível** em: `http://[IP-AUTOMATICO]:2424/docs`
-
-**📖 Documentação completa:** [Workflows Guide](.github/README.md)
-
 ## 🛠️ Tecnologias
 
 - **🏗️ Terraform** - Infraestrutura como código (EC2, Security Groups)
@@ -117,21 +99,6 @@ git push origin main
 - 🔒 **Security**: Scan automático de vulnerabilidades
 - 💰 **Cost optimization**: Reuso inteligente de EC2
 
-## 🆘 Troubleshooting
-
-### **Problemas Comuns**
-
-**❌ "Failed to get EC2 IP"**
-→ Verifique secrets AWS configurados
-
-**❌ "SSH connection failed"**  
-→ Confirme `EC2_SSH_PRIVATE_KEY` secret
-
-**❌ "Application not responding"**
-→ Verifique logs do container: `docker logs events-api`
-
-**📖 Guia completo:** [Workflows Documentation](.github/README.md)
-
 ## 🏆 Características DevOps
 
 - ✅ **Infrastructure as Code** (Terraform)
@@ -147,5 +114,6 @@ git push origin main
 
 **🎯 Objetivo:** Demonstrar pipeline DevOps enterprise-grade com automação total e zero-touch deployment.
 
-**👨‍💻 Desenvolvido por:** Pedro Henrique Barros  
+**📖 Guia completo:** [Workflows Documentation](.github/README.md)
+
 **🎓 Instituição:** UNIFOR - Pós-graduação Engenharia de Software com DevOps
