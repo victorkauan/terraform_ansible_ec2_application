@@ -6,16 +6,17 @@ Este diretório contém os workflows do GitHub Actions para automatizar o pipeli
 
 ### 1. CI/CD Pipeline (`ci-cd.yml`)
 
-Pipeline principal que executa em pushes para `main` e `develop`, e em Pull Requests.
+Pipeline principal que executa em pushes para `main`, e em Pull Requests.
 
 **Etapas:**
 
 - **Build & Test**: Compila a aplicação Node.js/TypeScript, executa testes
 - **Security Scan**: Análise de vulnerabilidades com Trivy e npm audit
 - **Docker Build**: Constrói e publica imagem Docker no GitHub Container Registry
-- **Terraform Validate**: Valida configurações do Terraform
-- **Ansible Validate**: Valida playbooks do Ansible
-- **Deploy**: Provisiona infraestrutura e deploya aplicação (apenas branch `main`)
+- **Terraform Validate**: Valida versão e configurações do Terraform
+- **Ansible Validate**: Valida versão e playbooks do Ansible
+- **Auto Infrastructure**: Provisiona a infraestrutura caso não esteja criada
+- **Deploy**: Deploya aplicação
 - **Notify**: Notifica status do deployment
 
 ### 2. PR Validation (`pr-validation.yml`)
@@ -27,17 +28,6 @@ Validação rápida para Pull Requests.
 - Validação de sintaxe e build
 - Análise de arquivos modificados
 - Verificação de infraestrutura e configuração
-
-### 3. Cleanup Resources (`cleanup.yml`)
-
-Limpeza periódica de recursos.
-
-**Funcionalidades:**
-
-- Execução automática aos domingos (2:00 AM UTC)
-- Execução manual via workflow_dispatch
-- Limpeza de imagens Docker antigas
-- Destruição de infraestrutura (opcional)
 
 ## 🔧 Configuração Necessária
 
@@ -75,13 +65,6 @@ ANSIBLE_VERSION: 8.0.0
 1. Crie um Pull Request para `main` ou `develop`
 2. O workflow de validação será executado automaticamente
 3. Verifique os resultados antes do merge
-
-### Limpeza Manual
-
-1. Vá para Actions no GitHub
-2. Selecione "Cleanup Resources"
-3. Clique em "Run workflow"
-4. Marque "Destroy Terraform infrastructure" se necessário
 
 ## 📊 Monitoramento
 
