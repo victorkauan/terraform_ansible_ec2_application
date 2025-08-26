@@ -75,11 +75,18 @@ jobs:
         working-directory: ./server
         run: npm test
         continue-on-error: true
+        
+      - name: Debug server logs
+        if: failure()
+        run: |
+          echo "Checking server logs..."
+          docker ps -a
+          docker compose logs
 
       # Rodar testes Cypress
       - name: Start API in background
         working-directory: ./server
-        run: npm run dev &
+        run: npm run start &
 
       - name: Wait for API to be ready
         working-directory: ./server
