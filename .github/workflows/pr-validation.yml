@@ -41,6 +41,22 @@ jobs:
         working-directory: ./server
         run: npm run build
 
+      # Start API in background
+      - name: Start API in background
+        working-directory: ./server
+        run: npm run dev &
+
+      - name: Wait for API to be ready
+        working-directory: ./server
+        run: npx wait-on http://localhost:3000
+
+      - name: Run Cypress tests
+        if: steps.changed-files.outputs.server_any_changed == 'true'
+        working-directory: ./server
+        run: |
+          echo "Server changes detected, running Cypress tests..."
+          npx cypress run
+
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v3
         with:
