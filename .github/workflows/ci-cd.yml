@@ -138,7 +138,7 @@ jobs:
 
       - name: Run Cypress tests
         working-directory: ./server
-        run: npx cypress run
+        run: npx cypress run --config-file cypress/cypress.config.js
 
       # Upload dos artefatos de build
       - name: Upload build artifacts
