@@ -86,6 +86,8 @@ jobs:
       # Rodar testes Cypress
       - name: Start API in background
         working-directory: ./server
+        env:
+          DATABASE_URL: ${{ vars.DATABASE_URL }}
         run: npm run start &
 
       - name: Wait for API to be ready
