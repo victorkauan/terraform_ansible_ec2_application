@@ -7,7 +7,7 @@
     "dev": "tsx watch src/server.ts",
     "build": "tsup src --format esm",
     "start": "prisma migrate deploy && node dist/server.mjs",
-    "wait-api": "for i in {1..30}; do if curl -f $1 > /dev/null 2>&1; then echo 'API is ready'; exit 0; fi; echo 'Waiting for API...'; sleep 5; done; echo 'API failed to start'; exit 1",
+    "wait-api": "echo 'Waiting for API at $1...'; for i in {1..30}; do echo \"Attempt $i/30: Testing $1\"; if curl -f --connect-timeout 5 --max-time 10 $1 > /dev/null 2>&1; then echo 'API is ready at $1'; exit 0; fi; sleep 5; done; echo 'API failed to start at $1'; exit 1",
     "db:migrate": "prisma migrate dev",
     "db:studio": "prisma studio"
   },
