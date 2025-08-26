@@ -100,8 +100,8 @@ jobs:
           netstat -tlnp | grep :3000 || echo "Port 3000 not listening"
           
           echo "Waiting for API at http://127.0.0.1:3000..."
-          for i in {1..30}; do
-            echo "Attempt $i/30: Testing http://127.0.0.1:3000"
+          for i in {1..15}; do
+            echo "Attempt $i/15: Testing http://127.0.0.1:3000"
             if curl -f --connect-timeout 5 --max-time 10 http://127.0.0.1:3000 > /dev/null 2>&1; then
               echo "API is ready!"
               exit 0
