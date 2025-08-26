@@ -94,33 +94,14 @@ jobs:
           echo "Starting API server..."
           npm run start > /tmp/server.log 2>&1 &
           echo "API started in background with PID $!"
-          sleep 3
+          sleep 5
           echo "Initial server output:"
           head -n 20 /tmp/server.log || echo "No initial output"
 
       - name: Wait for API to be ready
         working-directory: ./server
         run: |
-          echo "Testing API connectivity..."
-          sleep 15
-          
-          echo "Checking if port 3000 is listening..."
-          netstat -tlnp | grep :3000 || echo "Port 3000 not listening"
-          
-          echo "Checking running processes..."
-          ps aux | grep node || echo "No node processes found"
-          
-          echo "Trying to connect to different endpoints..."
-          
-          # Test root endpoint
-          echo "Testing root endpoint..."
-          curl -v http://127.0.0.1:3000/ || echo "Root endpoint failed"
-          
-          # Test docs endpoint  
-          echo "Testing docs endpoint..."
-          curl -v http://127.0.0.1:3000/docs || echo "Docs endpoint failed"
-          
-          echo "Waiting for API at http://127.0.0.1:3000/docs..."
+          echo "Waiting for API to be ready..."
           for i in {1..20}; do
             echo "Attempt $i/20: Testing http://127.0.0.1:3000/docs"
             if curl -f --connect-timeout 5 --max-time 10 http://127.0.0.1:3000/docs > /dev/null 2>&1; then
@@ -129,17 +110,22 @@ jobs:
             fi
             sleep 5
           done
-          
           echo "API failed to start - checking logs..."
-          jobs
-          # Try to get process output
           cat /tmp/server.log || echo "No server log found"
           exit 1
 
+      - name: Debug Cypress test files
+        working-directory: ./server
+        run: |
+          echo "Listing Cypress test files..."
+          ls -R cypress/tests/api
+
       - name: Run Cypress tests
         working-directory: ./server
-        run: npx cypress run --config-file cypress/cypress.config.js
-
+        run: |
+          echo "Running Cypress tests..."
+          npx cypress run --config-file cypress/cypress.config.js --spec "cypress/tests/api/**/*.cy.js"
+          
       # Upload dos artefatos de build
       - name: Upload build artifacts
         uses: actions/upload-artifact@v4
