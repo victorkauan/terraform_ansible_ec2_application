@@ -125,7 +125,8 @@ jobs:
         run: |
           echo "Running Cypress tests..."
           npx cypress run --config-file cypress/cypress.config.js --spec "cypress/tests/api/**/*.cy.js"
-          
+
+
       # Upload dos artefatos de build
       - name: Upload build artifacts
         uses: actions/upload-artifact@v4
