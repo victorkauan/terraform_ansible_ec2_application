@@ -10,8 +10,32 @@ services:
       - POSTGRES_PASSWORD=${DB_PASS:-postgres}
       - POSTGRES_DB=${DB_NAME:-app}
     restart: unless-stopped
+    env_file:
+      - ./.env
     volumes:
       - db_data:/var/lib/postgresql/data
-  
+
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "3000:3000"
+    environment:
+      DATABASE_URL: postgres://${DB_USER:-postgres}:${DB_PASS:-postgres}@db:${DB_PORT:-5432}/${DB_NAME:-app}
+    depends_on:
+      - db
+
+  cypress:
+    image: cypress/included:14.5.4
+    working_dir: /usr/src/app/cypress
+    volumes:
+      - .:/usr/src/app
+    depends_on:
+      - backend
+    environment:
+      CYPRESS_baseUrl: http://backend:3000
+    command: ["npx", "cypress", "run"]
+
 volumes:
   db_data:

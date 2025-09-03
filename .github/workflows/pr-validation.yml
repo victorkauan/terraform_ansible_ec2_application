@@ -22,50 +22,69 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
+      - name: Get changed files
+        id: changed-files
+        uses: tj-actions/changed-files@v40
+        with:
+          files_yaml: |
+            server:
+              - server/**
+            terraform:
+              - terraform/**
+            ansible:
+              - ansible/**
+
+      # Node.js validation (só se server mudou)
       - name: Setup Node.js
+        if: steps.changed-files.outputs.server_any_changed == 'true'
         uses: actions/setup-node@v4
         with:
           node-version: '20'
           cache: 'npm'
           cache-dependency-path: server/package-lock.json
 
-      - name: Install dependencies
+      - name: Validate Node.js code
+        if: steps.changed-files.outputs.server_any_changed == 'true'
         working-directory: ./server
-        run: npm ci
+        run: |
+          echo "🔍 Validating Node.js code..."
+          npm i
+          npx tsc --noEmit
+          npm run build
+          echo "✅ Node.js validation completed"
 
-      - name: TypeScript type check
-        working-directory: ./server
-        run: npx tsc --noEmit
-
-      - name: Build check
-        working-directory: ./server
-        run: npm run build
-
+      # Terraform validation (só se terraform mudou)
       - name: Setup Terraform
+        if: steps.changed-files.outputs.terraform_any_changed == 'true'
         uses: hashicorp/setup-terraform@v3
         with:
           terraform_version: ${{ env.TF_VERSION }}
 
-      - name: Terraform Format Check
-        working-directory: ./terraform
-        run: terraform fmt -check -recursive
-
-      - name: Terraform Validate
+      - name: Validate Terraform
+        if: steps.changed-files.outputs.terraform_any_changed == 'true'
         working-directory: ./terraform
         run: |
+          echo "🏗️ Validating Terraform..."
+          terraform fmt -check -recursive
           terraform init -backend=false
           terraform validate
+          echo "✅ Terraform validation completed"
 
+      # Ansible validation (só se ansible mudou)
       - name: Setup Python
+        if: steps.changed-files.outputs.ansible_any_changed == 'true'
         uses: actions/setup-python@v4
         with:
           python-version: '3.11'
 
       - name: Validate Ansible
+        if: steps.changed-files.outputs.ansible_any_changed == 'true'
         working-directory: ./ansible
         run: |
+          echo "⚙️ Validating Ansible..."
           pip install ansible==${{ env.ANSIBLE_VERSION }}
           ansible-playbook --syntax-check playbook.yml
+          echo "✅ Ansible validation completed"
 
   # Job de análise de mudanças
   analyze-changes:
