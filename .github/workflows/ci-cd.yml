@@ -2,9 +2,9 @@ name: CI/CD Pipeline
 
 on:
   push:
-    branches: [main, teste]
+    branches: [main, dev]
   pull_request:
-    branches: [main, teste]
+    branches: [main, dev]
 
 permissions:
   contents: write
