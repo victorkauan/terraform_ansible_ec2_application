@@ -30,7 +30,7 @@ resource "aws_security_group" "app_sg" {
     from_port   = 22
     to_port     = 22
     protocol    = "tcp"
-    cidr_blocks = ["177.37.136.126/32", "177.37.138.107/32"]
+    cidr_blocks = ["0.0.0.0/0"] # Permite SSH de qualquer lugar
   }
 
   egress {
@@ -46,9 +46,9 @@ resource "aws_security_group" "app_sg" {
 }
 
 resource "aws_instance" "app" {
-  ami           = data.aws_ami.amazon_linux2.id
-  instance_type = var.instance_type
-  key_name      = var.key_name
+  ami                    = data.aws_ami.amazon_linux2.id
+  instance_type          = var.instance_type
+  key_name               = var.key_name
   vpc_security_group_ids = [aws_security_group.app_sg.id] # Associa o SG
 
   associate_public_ip_address = true

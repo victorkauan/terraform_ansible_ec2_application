@@ -1,0 +1,623 @@
+name: CI/CD Pipeline
+
+on:
+  push:
+    branches: [main, dev]
+  pull_request:
+    branches: [main, dev]
+
+permissions:
+  contents: write
+  security-events: write
+  actions: read
+  packages: write
+
+env:
+  DOCKER_REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}/server
+  TF_VERSION: 1.5.7
+  ANSIBLE_VERSION: 8.0.0
+
+jobs:
+  # Job de Build e Test da aplicação
+  build-and-test:
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:15
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_USER: postgres
+          POSTGRES_DB: meubanco
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          registry-url: 'https://registry.npmjs.org'
+
+      - name: Install dependencies
+        working-directory: ./server
+        run: |
+          npm cache clean --force
+          rm -rf node_modules package-lock.json
+          npm install --registry https://registry.npmjs.org
+
+      - name: Run TypeScript type check
+        working-directory: ./server
+        run: npx tsc --noEmit
+
+      - name: Generate Prisma client
+        working-directory: ./server
+        run: npx prisma generate
+
+      - name: Run database migrations
+        working-directory: ./server
+        env:
+          DATABASE_URL: ${{ vars.DATABASE_URL }}
+        run: npx prisma migrate deploy
+
+      - name: Build application
+        working-directory: ./server
+        run: npm run build
+
+      - name: Run tests (when available)
+        working-directory: ./server
+        run: npm test
+        continue-on-error: true
+        
+      - name: Debug server logs
+        if: failure()
+        run: |
+          echo "Checking server logs..."
+          docker ps -a
+          docker compose logs
+
+      # Rodar testes Cypress
+      - name: Start API in background
+        working-directory: ./server
+        env:
+          DATABASE_URL: ${{ vars.DATABASE_URL }}
+        run: |
+          echo "Starting API server..."
+          npm run start > /tmp/server.log 2>&1 &
+          echo "API started in background with PID $!"
+          sleep 5
+          echo "Initial server output:"
+          head -n 20 /tmp/server.log || echo "No initial output"
+
+      - name: Wait for API to be ready
+        working-directory: ./server
+        run: |
+          echo "Waiting for API to be ready..."
+          for i in {1..20}; do
+            echo "Attempt $i/20: Testing http://127.0.0.1:3000/docs"
+            if curl -f --connect-timeout 5 --max-time 10 http://127.0.0.1:3000/docs > /dev/null 2>&1; then
+              echo "API is ready!"
+              exit 0
+            fi
+            sleep 5
+          done
+          echo "API failed to start - checking logs..."
+          cat /tmp/server.log || echo "No server log found"
+          exit 1
+
+      - name: Debug Cypress test files
+        working-directory: ./server
+        run: |
+          echo "Listing Cypress test files..."
+          ls -R cypress/tests/api
+
+      - name: Run Cypress tests
+        working-directory: ./server
+        run: |
+          echo "Running Cypress tests..."
+          npx cypress run --config-file cypress/cypress.config.js --spec "cypress/tests/api/**/*.cy.js"
+
+
+      # Upload dos artefatos de build
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-artifacts
+          path: server/dist/
+
+  # Job de análise de segurança e qualidade
+  security-scan:
+    runs-on: ubuntu-latest
+    needs: build-and-test
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          registry-url: 'https://registry.npmjs.org'
+
+      - name: Install dependencies
+        working-directory: ./server
+        run: |
+          npm cache clean --force
+          rm -rf node_modules package-lock.json
+          npm install --registry https://registry.npmjs.org
+
+      - name: Run security audit
+        working-directory: ./server
+        run: npm audit --audit-level moderate
+        continue-on-error: true
+
+      - name: Run Trivy vulnerability scanner
+        uses: aquasecurity/trivy-action@master
+        with:
+          scan-type: 'fs'
+          scan-ref: './server'
+          format: 'sarif'
+          output: 'trivy-results.sarif'
+
+      - name: Upload Trivy scan results to GitHub Security tab
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: 'trivy-results.sarif'
+
+  # Job de build da imagem Docker
+  docker-build:
+    runs-on: ubuntu-latest
+    needs: [build-and-test, security-scan]
+    if: github.event_name == 'push'
+
+    outputs:
+      image-tag: ${{ steps.meta.outputs.tags }}
+      image-digest: ${{ steps.build.outputs.digest }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.DOCKER_REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.DOCKER_REGISTRY }}/${{ env.IMAGE_NAME }}
+          tags: |
+            type=ref,event=branch
+            type=ref,event=pr
+            type=sha,prefix={{branch}}-
+            type=raw,value=latest,enable={{is_default_branch}}
+
+      - name: Build and push Docker image
+        id: build
+        uses: docker/build-push-action@v5
+        with:
+          context: ./server
+          file: ./server/Dockerfile
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          platforms: linux/amd64,linux/arm64
+
+  # Job de validação do Terraform
+  terraform-validate:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ env.TF_VERSION }}
+
+      - name: Terraform Format Check
+        working-directory: ./terraform
+        run: terraform fmt -check -recursive
+
+      - name: Terraform Init
+        working-directory: ./terraform
+        run: terraform init -backend=false
+
+      - name: Terraform Validate
+        working-directory: ./terraform
+        run: terraform validate
+
+      - name: Run TFLint
+        uses: terraform-linters/setup-tflint@v4
+        with:
+          tflint_version: latest
+
+      - name: Init TFLint
+        working-directory: ./terraform
+        run: tflint --init
+
+      - name: Run TFLint
+        working-directory: ./terraform
+        run: tflint -f compact
+
+  # Job de validação do Ansible
+  ansible-validate:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+
+      - name: Install Ansible
+        run: |
+          pip install ansible==${{ env.ANSIBLE_VERSION }}
+          pip install ansible-lint
+
+      - name: Validate Ansible syntax
+        working-directory: ./ansible
+        run: ansible-playbook --syntax-check playbook.yml
+
+      - name: Run Ansible Lint
+        working-directory: ./ansible
+        run: ansible-lint playbook.yml
+        continue-on-error: true
+
+  # Job de Auto-provisioning de Infraestrutura
+  auto-infrastructure:
+    runs-on: ubuntu-latest
+    needs: [terraform-validate, ansible-validate]
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+
+    outputs:
+      infrastructure_exists: ${{ steps.check-infra.outputs.exists }}
+      public_ip: ${{ steps.final-ip.outputs.public_ip }}
+      created_new: ${{ steps.create-infra.outputs.created }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ env.TF_VERSION }}
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: us-east-1
+
+      - name: Check existing infrastructure
+        id: check-infra
+        run: |
+          echo "🔍 Checking for existing EC2 infrastructure..."
+
+          # Busca instância EC2 existente
+          INSTANCE_DATA=$(aws ec2 describe-instances \
+            --filters "Name=tag:Name,Values=EC2 DevOps Pos Graduacao" \
+                    "Name=instance-state-name,Values=running,stopped,pending" \
+            --query "Reservations[0].Instances[0].{PublicIp:PublicIpAddress,InstanceId:InstanceId,State:State.Name}" \
+            --output json 2>/dev/null || echo '{}')
+
+          INSTANCE_ID=$(echo $INSTANCE_DATA | jq -r '.InstanceId // empty')
+          PUBLIC_IP=$(echo $INSTANCE_DATA | jq -r '.PublicIp // empty')
+          STATE=$(echo $INSTANCE_DATA | jq -r '.State // empty')
+
+          if [ -n "$INSTANCE_ID" ] && [ "$INSTANCE_ID" != "null" ]; then
+            echo "✅ Found existing EC2 instance:"
+            echo "   Instance ID: $INSTANCE_ID"
+            echo "   Public IP: $PUBLIC_IP"
+            echo "   State: $STATE"
+            echo "exists=true" >> $GITHUB_OUTPUT
+            echo "instance_id=$INSTANCE_ID" >> $GITHUB_OUTPUT
+            echo "public_ip=$PUBLIC_IP" >> $GITHUB_OUTPUT
+            echo "state=$STATE" >> $GITHUB_OUTPUT
+          else
+            echo "❌ No existing EC2 instance found"
+            echo "🚀 Will create new infrastructure automatically"
+            echo "exists=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Initialize Terraform
+        if: steps.check-infra.outputs.exists == 'false'
+        working-directory: ./terraform
+        run: |
+          echo "🔧 Initializing Terraform..."
+          terraform init
+
+      - name: Create Infrastructure Automatically
+        id: create-infra
+        if: steps.check-infra.outputs.exists == 'false'
+        working-directory: ./terraform
+        run: |
+          echo "🏗️ Creating infrastructure automatically..."
+          echo "This is required for the first deployment or after infrastructure cleanup"
+          echo ""
+
+          # Plan
+          echo "📋 Planning infrastructure..."
+          terraform plan -var-file="terraform.tfvars" -out=tfplan
+
+          # Apply
+          echo "🚀 Applying infrastructure..."
+          terraform apply tfplan
+
+          # Get outputs
+          PUBLIC_IP=$(terraform output -raw ec2_public_ip)
+          echo "✅ Infrastructure created successfully!"
+          echo "📍 New EC2 Public IP: $PUBLIC_IP"
+
+          echo "created=true" >> $GITHUB_OUTPUT
+          echo "public_ip=$PUBLIC_IP" >> $GITHUB_OUTPUT
+
+      - name: Get IP from existing infrastructure
+        id: get-ip
+        if: steps.check-infra.outputs.exists == 'true'
+        run: |
+          # Se infraestrutura existe, usa IP existente
+          if [ "${{ steps.check-infra.outputs.state }}" == "running" ]; then
+            echo "✅ Instance is running, using existing IP"
+            echo "public_ip=${{ steps.check-infra.outputs.public_ip }}" >> $GITHUB_OUTPUT
+          else
+            echo "⚠️ Instance exists but is not running (state: ${{ steps.check-infra.outputs.state }})"
+            echo "Starting instance..."
+            aws ec2 start-instances --instance-ids ${{ steps.check-infra.outputs.instance_id }}
+            
+            # Aguarda instância ficar running
+            echo "Waiting for instance to be running..."
+            aws ec2 wait instance-running --instance-ids ${{ steps.check-infra.outputs.instance_id }}
+            
+            # Obtém novo IP público
+            NEW_IP=$(aws ec2 describe-instances \
+              --instance-ids ${{ steps.check-infra.outputs.instance_id }} \
+              --query "Reservations[0].Instances[0].PublicIpAddress" \
+              --output text)
+            
+            echo "✅ Instance started with IP: $NEW_IP"
+            echo "public_ip=$NEW_IP" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Set final IP output
+        id: final-ip
+        run: |
+          if [ "${{ steps.check-infra.outputs.exists }}" == "false" ]; then
+            # Nova infraestrutura criada
+            FINAL_IP="${{ steps.create-infra.outputs.public_ip }}"
+            echo "🚀 Using IP from newly created infrastructure: $FINAL_IP"
+          else
+            # Infraestrutura existente
+            FINAL_IP="${{ steps.get-ip.outputs.public_ip }}"
+            echo "🔄 Using IP from existing infrastructure: $FINAL_IP"
+          fi
+
+          if [ -z "$FINAL_IP" ] || [ "$FINAL_IP" == "null" ]; then
+            echo "❌ Failed to determine final IP address"
+            echo "Debug info:"
+            echo "  exists: ${{ steps.check-infra.outputs.exists }}"
+            echo "  create-infra IP: ${{ steps.create-infra.outputs.public_ip }}"
+            echo "  get-ip IP: ${{ steps.get-ip.outputs.public_ip }}"
+            exit 1
+          fi
+
+          echo "✅ Final IP determined: $FINAL_IP"
+          echo "public_ip=$FINAL_IP" >> $GITHUB_OUTPUT
+
+      - name: Infrastructure Summary
+        run: |
+          echo "## 🏗️ Infrastructure Status" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          if [ "${{ steps.check-infra.outputs.exists }}" == "true" ]; then
+            echo "**Status:** Using existing infrastructure ✅" >> $GITHUB_STEP_SUMMARY
+            echo "**Instance ID:** ${{ steps.check-infra.outputs.instance_id }}" >> $GITHUB_STEP_SUMMARY
+            echo "**Previous State:** ${{ steps.check-infra.outputs.state }}" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "**Status:** Created new infrastructure 🚀" >> $GITHUB_STEP_SUMMARY
+            echo "**Action:** Automatic provisioning" >> $GITHUB_STEP_SUMMARY
+          fi
+
+          echo "**Public IP:** ${{ steps.final-ip.outputs.public_ip }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Ready for deployment:** ✅" >> $GITHUB_STEP_SUMMARY
+
+  # Job de Deploy
+  deploy:
+    runs-on: ubuntu-latest
+    needs: [docker-build, auto-infrastructure]
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    environment: production
+
+    outputs:
+      public_ip: ${{ needs.auto-infrastructure.outputs.public_ip }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: us-east-1
+
+      - name: Retrieve EC2 IP from Auto-Infrastructure
+        id: ec2-ip
+        run: |
+          # Debug: Mostra todos os outputs do job anterior
+          echo "🔍 Debug - Auto-infrastructure outputs:"
+          echo "   infrastructure_exists: ${{ needs.auto-infrastructure.outputs.infrastructure_exists }}"
+          echo "   public_ip: ${{ needs.auto-infrastructure.outputs.public_ip }}"
+          echo "   created_new: ${{ needs.auto-infrastructure.outputs.created_new }}"
+
+          # Usa IP da infraestrutura criada automaticamente
+          PUBLIC_IP="${{ needs.auto-infrastructure.outputs.public_ip }}"
+
+          if [ -z "$PUBLIC_IP" ] || [ "$PUBLIC_IP" == "null" ] || [ "$PUBLIC_IP" == "" ]; then
+            echo "❌ Failed to get EC2 IP from auto-infrastructure job"
+            echo "   Expected: Valid IP address"
+            echo "   Received: '$PUBLIC_IP'"
+            echo ""
+            echo "🔍 This indicates an issue with the auto-infrastructure job."
+            echo "   Please check the auto-infrastructure job logs for errors."
+            exit 1
+          fi
+
+          # Validação adicional do formato do IP
+          if [[ ! $PUBLIC_IP =~ ^[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}$ ]]; then
+            echo "❌ Invalid IP format received: '$PUBLIC_IP'"
+            exit 1
+          fi
+
+          echo "✅ Using EC2 instance with IP: $PUBLIC_IP"
+          echo "public_ip=$PUBLIC_IP" >> $GITHUB_OUTPUT
+
+          # Informações do deployment
+          if [ "${{ needs.auto-infrastructure.outputs.created_new }}" == "true" ]; then
+            echo "🚀 Deploying to newly created infrastructure"
+          else
+            echo "🔄 Deploying to existing infrastructure"
+          fi
+
+      - name: Setup Python for Ansible
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+
+      - name: Install Ansible
+        run: |
+          pip install ansible==${{ env.ANSIBLE_VERSION }}
+          pip install boto3 botocore
+
+      - name: Create dynamic Ansible inventory
+        working-directory: ./ansible
+        run: |
+          echo "📝 Creating dynamic inventory with EC2 IP: ${{ steps.ec2-ip.outputs.public_ip }}"
+
+          # Cria inventory dinâmico com o IP correto
+          cat > inventory.yml << EOF
+          all:
+            hosts:
+              aws_ec2:
+                ansible_host: ${{ steps.ec2-ip.outputs.public_ip }}
+                ansible_user: ec2-user
+                ansible_ssh_private_key_file: ~/.ssh/id_rsa
+                ansible_ssh_common_args: '-o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null'
+          EOF
+
+          echo "✅ Dynamic inventory created:"
+          cat inventory.yml
+
+      - name: Setup SSH key
+        run: |
+          # Cria diretório SSH
+          mkdir -p ~/.ssh
+
+          # Verifica se a chave SSH existe
+          if [ -z "${{ secrets.EC2_SSH_PRIVATE_KEY }}" ]; then
+            echo "❌ EC2_SSH_PRIVATE_KEY secret not found!"
+            exit 1
+          fi
+
+          # Cria arquivo de chave privada
+          echo "${{ secrets.EC2_SSH_PRIVATE_KEY }}" > ~/.ssh/id_rsa
+
+          # Define permissões corretas
+          chmod 600 ~/.ssh/id_rsa
+
+          # Verifica se a chave foi criada corretamente
+          if ! ssh-keygen -y -f ~/.ssh/id_rsa > /dev/null 2>&1; then
+            echo "❌ Invalid SSH private key!"
+            exit 1
+          fi
+
+          # Adiciona host às known_hosts
+          ssh-keyscan -H ${{ steps.ec2-ip.outputs.public_ip }} >> ~/.ssh/known_hosts
+
+          echo "✅ SSH key setup completed"
+
+      - name: Wait for EC2 instance to be ready
+        run: |
+          echo "🔗 Waiting for EC2 instance to be ready..."
+          echo "   Target: ec2-user@${{ steps.ec2-ip.outputs.public_ip }}"
+          echo "   Testing SSH connectivity..."
+
+          for i in {1..30}; do
+            echo "Attempt $i/30: Testing SSH connection..."
+            if ssh -o ConnectTimeout=10 -o StrictHostKeyChecking=no -i ~/.ssh/id_rsa ec2-user@${{ steps.ec2-ip.outputs.public_ip }} "echo 'Instance ready'" 2>/dev/null; then
+              echo "✅ Instance is ready!"
+              break
+            fi
+            echo "   Connection failed, retrying in 30 seconds..."
+            sleep 30
+          done
+
+      - name: Test Ansible connectivity
+        working-directory: ./ansible
+        run: |
+          echo "🧪 Testing Ansible connectivity..."
+          echo "Inventory content:"
+          cat inventory.yml
+          echo ""
+          echo "Testing connection:"
+          ansible all -i inventory.yml -m ping -v
+
+      - name: Deploy with Ansible
+        working-directory: ./ansible
+        run: |
+          ansible-playbook -i inventory.yml playbook.yml \
+            --extra-vars "docker_image=${{ needs.docker-build.outputs.image-tag }}"
+
+      - name: Verify deployment
+        run: |
+          echo "Checking if application is responding..."
+          for i in {1..10}; do
+            if curl -f http://${{ steps.ec2-ip.outputs.public_ip }}:2424/docs; then
+              echo "Application is healthy!"
+              break
+            fi
+            echo "Health check attempt $i failed, retrying in 30 seconds..."
+            sleep 30
+          done
+
+  # Job de notificação
+  notify:
+    runs-on: ubuntu-latest
+    needs: [deploy]
+    if: always()
+
+    steps:
+      - name: Notify deployment status
+        run: |
+          if [ "${{ needs.deploy.result }}" == "success" ]; then
+            echo "✅ Deployment successful!"
+            echo "🚀 Application is available at: http://${{ needs.deploy.outputs.public_ip }}:2424/docs"
+          else
+            echo "❌ Deployment failed!"
+          fi

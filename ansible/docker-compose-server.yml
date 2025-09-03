@@ -1,4 +1,4 @@
-version: "3.8"
+version: '3.8'
 services:
   db:
     image: postgres:15
@@ -9,19 +9,20 @@ services:
     volumes:
       - db_data:/var/lib/postgresql/data
     ports:
-      - "5432:5432"
+      - '5432:5432'
     networks:
       - service
 
   events-api:
-    image: edvaljunior/application_docker_terraform_ec2_ansible:latest
+    image: ${DOCKER_IMAGE:-ghcr.io/pedrobarros3421/terraform_ansible_ec2_application/server:latest}
     container_name: events-api
-    entrypoint: ["npm", "start"]
+    entrypoint: ['npm', 'start']
     restart: always
     ports:
-      - "2424:2424"
+      - '2424:2424'
     environment:
       DATABASE_URL: postgres://postgres:postgres@db:5432/meubanco
+      PORT: 2424
     depends_on:
       - db
     networks:
