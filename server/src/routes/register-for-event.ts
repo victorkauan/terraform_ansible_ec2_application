@@ -26,6 +26,12 @@ export async function registerForEvent(app: FastifyInstance) {
           201: z.object({
             attendeeId: z.number(),
           }),
+          400: z.object({
+            message: z.string(),
+          }),
+          404: z.object({
+            message: z.string(),
+          }),
         },
       },
     },
