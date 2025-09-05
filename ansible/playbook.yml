@@ -105,26 +105,82 @@
         group: "{{ ansible_user }}"
         mode: "0644"
 
+    - name: Criar diretório do Prometheus
+      file:
+        path: "{{ project_path }}/monitoring/prometheus"
+        state: directory
+        mode: "0755"
+        owner: "{{ ansible_user }}"
+        group: "{{ ansible_user }}"
+
     - name: Copiar configuração do Prometheus
       copy:
-        src: ../prometheus/
-        dest: "{{ project_path }}/monitoring/prometheus/"
+        src: "{{ playbook_dir }}/../prometheus/prometheus.yml"
+        dest: "{{ project_path }}/monitoring/prometheus/prometheus.yml"
         owner: "{{ ansible_user }}"
         group: "{{ ansible_user }}"
         mode: "0644"
+
+    - name: Copiar regras de alerta do Prometheus
+      copy:
+        src: "{{ playbook_dir }}/../prometheus/alert.rules"
+        dest: "{{ project_path }}/monitoring/prometheus/alert.rules"
+        owner: "{{ ansible_user }}"
+        group: "{{ ansible_user }}"
+        mode: "0644"
+
+    - name: Criar diretório do Alertmanager
+      file:
+        path: "{{ project_path }}/monitoring/alertmanager"
+        state: directory
+        mode: "0755"
+        owner: "{{ ansible_user }}"
+        group: "{{ ansible_user }}"
 
     - name: Copiar configuração do Alertmanager
       copy:
-        src: ../alertmanager/
-        dest: "{{ project_path }}/monitoring/alertmanager/"
+        src: "{{ playbook_dir }}/../alertmanager/alertmanager.yml"
+        dest: "{{ project_path }}/monitoring/alertmanager/alertmanager.yml"
         owner: "{{ ansible_user }}"
         group: "{{ ansible_user }}"
         mode: "0644"
 
-    - name: Copiar configuração do Grafana
+    - name: Criar diretório do Grafana
+      file:
+        path: "{{ project_path }}/monitoring/grafana"
+        state: directory
+        mode: "0755"
+        owner: "{{ ansible_user }}"
+        group: "{{ ansible_user }}"
+
+    - name: Criar diretório de dashboards do Grafana
+      file:
+        path: "{{ project_path }}/monitoring/grafana/dashboards"
+        state: directory
+        mode: "0755"
+        owner: "{{ ansible_user }}"
+        group: "{{ ansible_user }}"
+
+    - name: Criar diretório de datasources do Grafana
+      file:
+        path: "{{ project_path }}/monitoring/grafana/provisioning/datasources"
+        state: directory
+        mode: "0755"
+        owner: "{{ ansible_user }}"
+        group: "{{ ansible_user }}"
+
+    - name: Copiar dashboard do Grafana
       copy:
-        src: ../grafana/
-        dest: "{{ project_path }}/monitoring/grafana/"
+        src: "{{ playbook_dir }}/../grafana/dashboards/events-api-dashboard.json"
+        dest: "{{ project_path }}/monitoring/grafana/dashboards/events-api-dashboard.json"
+        owner: "{{ ansible_user }}"
+        group: "{{ ansible_user }}"
+        mode: "0644"
+
+    - name: Copiar datasource do Grafana
+      copy:
+        src: "{{ playbook_dir }}/../grafana/provisioning/datasources/prometheus.yml"
+        dest: "{{ project_path }}/monitoring/grafana/provisioning/datasources/prometheus.yml"
         owner: "{{ ansible_user }}"
         group: "{{ ansible_user }}"
         mode: "0644"
