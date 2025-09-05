@@ -28,9 +28,9 @@
 
     - name: Criar diretório de CLI plugins para Docker Compose
       file:
-        path: '/root/.docker/cli-plugins'
+        path: "/root/.docker/cli-plugins"
         state: directory
-        mode: '0755'
+        mode: "0755"
 
     - name: Baixar e instalar Docker Compose v2 (CLI plugin)
       shell: |
@@ -46,8 +46,8 @@
 
     - name: Validar instalação do Docker Compose
       file:
-        path: '/root/.docker/cli-plugins/docker-compose'
-        mode: '0755'
+        path: "/root/.docker/cli-plugins/docker-compose"
+        mode: "0755"
         state: file
 
     - name: Verificar versão do Docker Compose
@@ -56,103 +56,167 @@
 
     - name: Mostrar versão do Docker Compose
       debug:
-        msg: 'Docker Compose instalado: {{ docker_compose_version.stdout }}'
+        msg: "Docker Compose instalado: {{ docker_compose_version.stdout }}"
 
     - name: Adicionar usuário ao grupo docker
       user:
-        name: '{{ ansible_user }}'
+        name: "{{ ansible_user }}"
         groups: docker
         append: yes
 
     - name: Criar arquivo de validação
       copy:
-        dest: '/home/{{ ansible_user }}/validation_ansible.txt'
+        dest: "/home/{{ ansible_user }}/validation_ansible.txt"
         content: "Ansible executado com sucesso em {{ ansible_date_time.date }} {{ ansible_date_time.time }}\n"
-        owner: '{{ ansible_user }}'
-        group: '{{ ansible_user }}'
-        mode: '0644'
+        owner: "{{ ansible_user }}"
+        group: "{{ ansible_user }}"
+        mode: "0644"
 
 - name: Deploy Container via Docker Compose
   hosts: aws_ec2
   become: true
   vars:
-    project_path: '/home/{{ ansible_user }}/server'
+    project_path: "/home/{{ ansible_user }}/server"
     # Usa a imagem passada via extra-vars ou fallback para uma padrão
     container_image: "{{ docker_image | default('ghcr.io/pedrobarros3421/terraform_ansible_ec2_application/server:latest') }}"
     container_name: events-api
   tasks:
     - name: Criar diretório do projeto
       file:
-        path: '{{ project_path }}'
+        path: "{{ project_path }}"
         state: directory
-        mode: '0755'
-        owner: '{{ ansible_user }}'
-        group: '{{ ansible_user }}'
+        mode: "0755"
+        owner: "{{ ansible_user }}"
+        group: "{{ ansible_user }}"
+
+    - name: Criar diretório de monitoramento
+      file:
+        path: "{{ project_path }}/monitoring"
+        state: directory
+        mode: "0755"
+        owner: "{{ ansible_user }}"
+        group: "{{ ansible_user }}"
 
     - name: Copiar arquivo docker-compose.yml
       copy:
         src: docker-compose-server.yml
-        dest: '{{ project_path }}/docker-compose.yml'
-        owner: '{{ ansible_user }}'
-        group: '{{ ansible_user }}'
-        mode: '0644'
+        dest: "{{ project_path }}/docker-compose.yml"
+        owner: "{{ ansible_user }}"
+        group: "{{ ansible_user }}"
+        mode: "0644"
+
+    - name: Copiar configuração do Prometheus
+      copy:
+        src: ../prometheus/
+        dest: "{{ project_path }}/monitoring/prometheus/"
+        owner: "{{ ansible_user }}"
+        group: "{{ ansible_user }}"
+        mode: "0644"
+
+    - name: Copiar configuração do Alertmanager
+      copy:
+        src: ../alertmanager/
+        dest: "{{ project_path }}/monitoring/alertmanager/"
+        owner: "{{ ansible_user }}"
+        group: "{{ ansible_user }}"
+        mode: "0644"
+
+    - name: Copiar configuração do Grafana
+      copy:
+        src: ../grafana/
+        dest: "{{ project_path }}/monitoring/grafana/"
+        owner: "{{ ansible_user }}"
+        group: "{{ ansible_user }}"
+        mode: "0644"
 
     - name: Garantir permissões de acesso e execução em /usr/src/app/
       file:
         path: /usr/src/app/
         state: directory
-        mode: '0755'
+        mode: "0755"
         recurse: yes
-        owner: '{{ ansible_user }}'
-        group: '{{ ansible_user }}'
+        owner: "{{ ansible_user }}"
+        group: "{{ ansible_user }}"
 
     - name: Garantir permissões de acesso e execução em /home/ec2-user/server
       file:
-        path: '{{ project_path }}'
+        path: "{{ project_path }}"
         state: directory
-        mode: '0755'
+        mode: "0755"
         recurse: yes
-        owner: '{{ ansible_user }}'
-        group: '{{ ansible_user }}'
+        owner: "{{ ansible_user }}"
+        group: "{{ ansible_user }}"
 
     - name: Parar e remover container existente
       shell: docker compose down
       args:
-        chdir: '{{ project_path }}'
+        chdir: "{{ project_path }}"
       environment:
-        DOCKER_IMAGE: '{{ container_image }}'
+        DOCKER_IMAGE: "{{ container_image }}"
       ignore_errors: true
 
     - name: Baixa a imagem via Docker Compose
       shell: docker compose pull
       args:
-        chdir: '{{ project_path }}'
+        chdir: "{{ project_path }}"
       environment:
-        DOCKER_IMAGE: '{{ container_image }}'
+        DOCKER_IMAGE: "{{ container_image }}"
 
     - name: Subir container via Docker Compose v2
       shell: docker compose up -d
       args:
-        chdir: '{{ project_path }}'
+        chdir: "{{ project_path }}"
       environment:
-        DOCKER_IMAGE: '{{ container_image }}'
+        DOCKER_IMAGE: "{{ container_image }}"
 
     - name: Verificar status dos containers
       shell: docker compose ps
       args:
-        chdir: '{{ project_path }}'
+        chdir: "{{ project_path }}"
       register: container_status
 
     - name: Mostrar status dos containers
       debug:
-        msg: '{{ container_status.stdout }}'
+        msg: "{{ container_status.stdout }}"
 
     - name: Aguardar aplicação ficar disponível
       uri:
-        url: 'http://localhost:2424/docs'
+        url: "http://localhost:2424/docs"
         method: GET
         status_code: 200
       retries: 10
       delay: 30
       register: health_check
       until: health_check.status == 200
+
+    - name: Aguardar Prometheus ficar disponível
+      uri:
+        url: "http://localhost:9090/-/healthy"
+        method: GET
+        status_code: 200
+      retries: 10
+      delay: 30
+      register: prometheus_health
+      until: prometheus_health.status == 200
+
+    - name: Aguardar Grafana ficar disponível
+      uri:
+        url: "http://localhost:3000/api/health"
+        method: GET
+        status_code: 200
+      retries: 10
+      delay: 30
+      register: grafana_health
+      until: grafana_health.status == 200
+
+    - name: Mostrar URLs de monitoramento
+      debug:
+        msg: |
+          🎉 Deploy concluído com sucesso!
+
+          📊 URLs de Monitoramento:
+          - API: http://{{ ansible_host }}:2424/docs
+          - Prometheus: http://{{ ansible_host }}:9090
+          - Grafana: http://{{ ansible_host }}:3000 (admin/admin123)
+          - Alertmanager: http://{{ ansible_host }}:9093
+          - Node Exporter: http://{{ ansible_host }}:9100
