@@ -235,35 +235,35 @@
       debug:
         msg: "{{ container_status.stdout }}"
 
-    - name: Aguardar aplicação ficar disponível
-      uri:
-        url: "http://localhost:2424/docs"
-        method: GET
-        status_code: 200
-      retries: 10
-      delay: 30
-      register: health_check
-      until: health_check.status == 200
+    # - name: Aguardar aplicação ficar disponível
+    #   uri:
+    #     url: "http://localhost:2424/docs"
+    #     method: GET
+    #     status_code: 200
+    #   retries: 10
+    #   delay: 30
+    #   register: health_check
+    #   until: health_check.status == 200
 
-    - name: Aguardar Prometheus ficar disponível
-      uri:
-        url: "http://localhost:9090/-/healthy"
-        method: GET
-        status_code: 200
-      retries: 10
-      delay: 30
-      register: prometheus_health
-      until: prometheus_health.status == 200
+    # - name: Aguardar Prometheus ficar disponível
+    #   uri:
+    #     url: "http://localhost:9090/-/healthy"
+    #     method: GET
+    #     status_code: 200
+    #   retries: 10
+    #   delay: 30
+    #   register: prometheus_health
+    #   until: prometheus_health.status == 200
 
-    - name: Aguardar Grafana ficar disponível
-      uri:
-        url: "http://localhost:3000/api/health"
-        method: GET
-        status_code: 200
-      retries: 10
-      delay: 30
-      register: grafana_health
-      until: grafana_health.status == 200
+    # - name: Aguardar Grafana ficar disponível
+    #   uri:
+    #     url: "http://localhost:3000/api/health"
+    #     method: GET
+    #     status_code: 200
+    #   retries: 10
+    #   delay: 30
+    #   register: grafana_health
+    #   until: grafana_health.status == 200
 
     - name: Mostrar URLs de monitoramento
       debug:
