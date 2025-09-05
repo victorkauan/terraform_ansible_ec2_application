@@ -6,3 +6,4 @@ server/node_modules/
 .terraform/
 *.hcl
 *.tfstate.*
+server/dist/
