@@ -1,0 +1,140 @@
+{
+  "dashboard": {
+    "id": null,
+    "title": "Events API Dashboard",
+    "tags": ["events-api", "monitoring"],
+    "style": "dark",
+    "timezone": "browser",
+    "panels": [
+      {
+        "id": 1,
+        "title": "HTTP Request Rate",
+        "type": "graph",
+        "targets": [
+          {
+            "expr": "rate(http_requests_total[5m])",
+            "legendFormat": "{{method}} {{route}}"
+          }
+        ],
+        "gridPos": { "h": 8, "w": 12, "x": 0, "y": 0 }
+      },
+      {
+        "id": 2,
+        "title": "HTTP Response Time (95th percentile)",
+        "type": "graph",
+        "targets": [
+          {
+            "expr": "histogram_quantile(0.95, rate(http_request_duration_seconds_bucket[5m]))",
+            "legendFormat": "{{method}} {{route}}"
+          }
+        ],
+        "gridPos": { "h": 8, "w": 12, "x": 12, "y": 0 }
+      },
+      {
+        "id": 3,
+        "title": "Error Rate",
+        "type": "graph",
+        "targets": [
+          {
+            "expr": "rate(http_requests_total{status_code=~\"5..\"}[5m])",
+            "legendFormat": "5xx Errors"
+          },
+          {
+            "expr": "rate(http_requests_total{status_code=~\"4..\"}[5m])",
+            "legendFormat": "4xx Errors"
+          }
+        ],
+        "gridPos": { "h": 8, "w": 12, "x": 0, "y": 8 }
+      },
+      {
+        "id": 4,
+        "title": "Events Created",
+        "type": "stat",
+        "targets": [
+          {
+            "expr": "events_created_total",
+            "legendFormat": "Total Events"
+          }
+        ],
+        "gridPos": { "h": 4, "w": 6, "x": 12, "y": 8 }
+      },
+      {
+        "id": 5,
+        "title": "Active Events",
+        "type": "stat",
+        "targets": [
+          {
+            "expr": "events_active",
+            "legendFormat": "Active Events"
+          }
+        ],
+        "gridPos": { "h": 4, "w": 6, "x": 18, "y": 8 }
+      },
+      {
+        "id": 6,
+        "title": "Attendees Registered",
+        "type": "stat",
+        "targets": [
+          {
+            "expr": "attendees_registered_total",
+            "legendFormat": "Total Attendees"
+          }
+        ],
+        "gridPos": { "h": 4, "w": 6, "x": 12, "y": 12 }
+      },
+      {
+        "id": 7,
+        "title": "Active Attendees",
+        "type": "stat",
+        "targets": [
+          {
+            "expr": "attendees_active",
+            "legendFormat": "Active Attendees"
+          }
+        ],
+        "gridPos": { "h": 4, "w": 6, "x": 18, "y": 12 }
+      },
+      {
+        "id": 8,
+        "title": "Application Status",
+        "type": "stat",
+        "targets": [
+          {
+            "expr": "up{job=\"events-api\"}",
+            "legendFormat": "API Status"
+          }
+        ],
+        "gridPos": { "h": 4, "w": 6, "x": 0, "y": 16 }
+      },
+      {
+        "id": 9,
+        "title": "Database Connections",
+        "type": "stat",
+        "targets": [
+          {
+            "expr": "database_connections_active",
+            "legendFormat": "Active Connections"
+          }
+        ],
+        "gridPos": { "h": 4, "w": 6, "x": 6, "y": 16 }
+      },
+      {
+        "id": 10,
+        "title": "Error Types",
+        "type": "piechart",
+        "targets": [
+          {
+            "expr": "rate(errors_total[5m])",
+            "legendFormat": "{{error_type}}"
+          }
+        ],
+        "gridPos": { "h": 8, "w": 12, "x": 12, "y": 16 }
+      }
+    ],
+    "time": {
+      "from": "now-1h",
+      "to": "now"
+    },
+    "refresh": "10s"
+  }
+}
