@@ -179,7 +179,7 @@ jobs:
   docker-build:
     runs-on: ubuntu-latest
     needs: [build-and-test, security-scan]
-    if: github.event_name == 'push'
+    if: github.ref == 'refs/heads/main'
 
     outputs:
       image-tag: ${{ steps.meta.outputs.tags }}
@@ -293,7 +293,7 @@ jobs:
   auto-infrastructure:
     runs-on: ubuntu-latest
     needs: [terraform-validate, ansible-validate]
-    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    if: github.ref == 'refs/heads/main'
 
     outputs:
       infrastructure_exists: ${{ steps.check-infra.outputs.exists }}
@@ -452,7 +452,7 @@ jobs:
   deploy:
     runs-on: ubuntu-latest
     needs: [docker-build, auto-infrastructure]
-    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    if: github.ref == 'refs/heads/main'
     environment: production
 
     outputs:
