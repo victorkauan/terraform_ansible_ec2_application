@@ -13,6 +13,7 @@ import { registerForEvent } from "./routes/register-for-event"
 import { getEvent } from "./routes/get-event"
 import { getAttendeeBadge } from "./routes/get-attendee-badge"
 import { getEventAttendees } from "./routes/get-event-attendees"
+import { searchEvents } from "./routes/search-events"
 import {
   getMetrics,
   httpRequestsTotal,
@@ -84,6 +85,7 @@ app.register(registerForEvent)
 app.register(getEvent)
 app.register(getAttendeeBadge)
 app.register(getEventAttendees)
+app.register(searchEvents)
 
 app.listen({ port: PORT, host: "0.0.0.0" }, (err, address) => {
   if (err) {
