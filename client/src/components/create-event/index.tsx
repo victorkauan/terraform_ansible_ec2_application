@@ -12,6 +12,7 @@ import Label from "../form/label";
 import Input from "../form/input";
 import TextArea from "../form/text-area";
 import ErrorMessage from "../form/error-message";
+import FieldGroup from "../form/field-group";
 
 export default function CreateEvent() {
   const navigate = useNavigate();
@@ -46,7 +47,7 @@ export default function CreateEvent() {
       className="px-6 py-5 border border-neutral-200 rounded-xl shadow flex flex-col gap-4"
     >
       <h2 className="text-2xl font-semibold">Criar novo evento</h2>
-      <div className="flex flex-col gap-1">
+      <FieldGroup>
         <Label htmlFor="title" label="Título" required />
         <Input
           {...register("title")}
@@ -54,9 +55,11 @@ export default function CreateEvent() {
           placeholder="Ex.: NLW Connect"
           disabled={isLoading}
         />
-        {errors.title?.message && <ErrorMessage message={errors.title.message} />}
-      </div>
-      <div className="flex flex-col gap-1">
+        {errors.title?.message && (
+          <ErrorMessage message={errors.title.message} />
+        )}
+      </FieldGroup>
+      <FieldGroup>
         <Label htmlFor="details" label="Detalhes" required />
         <TextArea
           {...register("details")}
@@ -65,9 +68,11 @@ export default function CreateEvent() {
           placeholder="Ex.: Crie um projeto em apenas três aulas gratuitas: nessa edição vamos codar o DevStage."
           disabled={isLoading}
         ></TextArea>
-        {errors.details?.message && <ErrorMessage message={errors.details.message} />}
-      </div>
-      <div className="flex flex-col gap-1">
+        {errors.details?.message && (
+          <ErrorMessage message={errors.details.message} />
+        )}
+      </FieldGroup>
+      <FieldGroup>
         <Label
           htmlFor="maximunAttendees"
           label="Máximo de participantes"
@@ -82,8 +87,10 @@ export default function CreateEvent() {
           placeholder="Ex.: 100"
           disabled={isLoading}
         />
-        {errors.maximunAttendees?.message && <ErrorMessage message={errors.maximunAttendees.message} />}
-      </div>
+        {errors.maximunAttendees?.message && (
+          <ErrorMessage message={errors.maximunAttendees.message} />
+        )}
+      </FieldGroup>
       <div className="flex gap-4">
         <Link
           to="/"
