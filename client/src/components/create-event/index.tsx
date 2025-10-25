@@ -21,6 +21,7 @@ export default function CreateEvent() {
           Detalhes <span className="text-red-500">*</span>
         </label>
         <textarea
+          id="details"
           name="details"
           rows={4}
           placeholder="Ex.: Crie um projeto em apenas três aulas gratuitas: nessa edição vamos codar o DevStage."
@@ -34,6 +35,7 @@ export default function CreateEvent() {
         </label>
         <input
           type="number"
+          id="maximunAttendees"
           name="maximunAttendees"
           min={1}
           step={1}
