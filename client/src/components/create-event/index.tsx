@@ -11,6 +11,7 @@ import {
 import Label from "../form/label";
 import Input from "../form/input";
 import TextArea from "../form/text-area";
+import ErrorMessage from "../form/error-message";
 
 export default function CreateEvent() {
   const navigate = useNavigate();
@@ -53,11 +54,7 @@ export default function CreateEvent() {
           placeholder="Ex.: NLW Connect"
           disabled={isLoading}
         />
-        {errors.title && (
-          <span className="text-xs font-semibold text-red-600">
-            {errors.title.message}
-          </span>
-        )}
+        {errors.title?.message && <ErrorMessage message={errors.title.message} />}
       </div>
       <div className="flex flex-col gap-1">
         <Label htmlFor="details" label="Detalhes" required />
@@ -68,11 +65,7 @@ export default function CreateEvent() {
           placeholder="Ex.: Crie um projeto em apenas três aulas gratuitas: nessa edição vamos codar o DevStage."
           disabled={isLoading}
         ></TextArea>
-        {errors.details && (
-          <span className="text-xs font-semibold text-red-600">
-            {errors.details.message}
-          </span>
-        )}
+        {errors.details?.message && <ErrorMessage message={errors.details.message} />}
       </div>
       <div className="flex flex-col gap-1">
         <Label
@@ -89,11 +82,7 @@ export default function CreateEvent() {
           placeholder="Ex.: 100"
           disabled={isLoading}
         />
-        {errors.maximunAttendees && (
-          <span className="text-xs font-semibold text-red-600">
-            {errors.maximunAttendees.message}
-          </span>
-        )}
+        {errors.maximunAttendees?.message && <ErrorMessage message={errors.maximunAttendees.message} />}
       </div>
       <div className="flex gap-4">
         <Link
