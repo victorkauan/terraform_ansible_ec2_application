@@ -5,6 +5,7 @@ import { Toaster } from "react-hot-toast";
 import "./index.css";
 import EventsPage from "./pages/events";
 import CreateEventPage from "./pages/create-event";
+import ViewEventPage from "./pages/view-event";
 
 createRoot(document.getElementById("root")!).render(
   <StrictMode>
@@ -14,6 +15,7 @@ createRoot(document.getElementById("root")!).render(
         <Route index element={<EventsPage />} />
         <Route path="events">
           <Route path="create" element={<CreateEventPage />} />
+          <Route path=":id" element={<ViewEventPage />} />
         </Route>
       </Routes>
     </BrowserRouter>
