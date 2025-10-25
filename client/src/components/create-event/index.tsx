@@ -9,6 +9,7 @@ import {
   type TCreateEventForm,
 } from "../../schemas/event/create-event.schema";
 import Label from "../form/label";
+import Input from "../form/input";
 
 export default function CreateEvent() {
   const navigate = useNavigate();
@@ -45,11 +46,10 @@ export default function CreateEvent() {
       <h2 className="text-2xl font-semibold">Criar novo evento</h2>
       <div className="flex flex-col gap-1">
         <Label htmlFor="title" label="Título" required />
-        <input
+        <Input
           {...register("title")}
           id="title"
           placeholder="Ex.: NLW Connect"
-          className="text-sm w-full px-3 py-1.5 rounded-md border border-neutral-200"
           disabled={isLoading}
         />
         {errors.title && (
@@ -80,14 +80,13 @@ export default function CreateEvent() {
           label="Máximo de participantes"
           required
         />
-        <input
+        <Input
           {...register("maximunAttendees", { valueAsNumber: true })}
           type="number"
           id="maximunAttendees"
           min={1}
           step={1}
           placeholder="Ex.: 100"
-          className="text-sm w-full px-3 py-1.5 rounded-md border border-neutral-200"
           disabled={isLoading}
         />
         {errors.maximunAttendees && (
