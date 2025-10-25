@@ -1,7 +1,7 @@
 import { QueryClientProvider } from "@tanstack/react-query";
-import Events from "../components/events";
-import Header from "../components/header";
-import queryClient from "../api/query-client";
+import Events from "../../components/events";
+import Header from "../../components/header";
+import queryClient from "../../api/query-client";
 
 export default function EventsPage() {
   return (
