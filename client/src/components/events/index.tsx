@@ -3,13 +3,13 @@ import indexEvents from "../../services/event/applications/index-events.service"
 import EventCard from "./event-card";
 
 export default function Events() {
-  const { isLoading, data, error } = useQuery({
+  const { isLoading, data } = useQuery({
     queryKey: ["index-events"],
     queryFn: indexEvents,
   });
 
   if (isLoading || !data) {
-    return <h1>Carregando...</h1>;
+    return <p>Carregando...</p>;
   }
 
   return (
