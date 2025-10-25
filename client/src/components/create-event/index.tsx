@@ -10,6 +10,7 @@ import {
 } from "../../schemas/event/create-event.schema";
 import Label from "../form/label";
 import Input from "../form/input";
+import TextArea from "../form/text-area";
 
 export default function CreateEvent() {
   const navigate = useNavigate();
@@ -60,14 +61,13 @@ export default function CreateEvent() {
       </div>
       <div className="flex flex-col gap-1">
         <Label htmlFor="details" label="Detalhes" required />
-        <textarea
+        <TextArea
           {...register("details")}
           id="details"
           rows={4}
           placeholder="Ex.: Crie um projeto em apenas três aulas gratuitas: nessa edição vamos codar o DevStage."
-          className="text-sm w-full px-3 py-1.5 rounded-md border border-neutral-200"
           disabled={isLoading}
-        ></textarea>
+        ></TextArea>
         {errors.details && (
           <span className="text-xs font-semibold text-red-600">
             {errors.details.message}
