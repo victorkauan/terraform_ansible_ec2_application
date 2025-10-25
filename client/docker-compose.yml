@@ -1,0 +1,14 @@
+services:
+  frontend:
+    container_name: frontend
+    build:
+      context: .
+      dockerfile: Dockerfile
+    env_file:
+      - .env
+    ports:
+      - "4173:4173"
+
+networks:
+  fantastic-four:
+    external: true
