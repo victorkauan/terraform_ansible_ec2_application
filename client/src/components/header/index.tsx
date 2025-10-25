@@ -2,7 +2,7 @@ import CalendarTodayIcon from "@mui/icons-material/CalendarToday";
 
 export default function Header() {
   return (
-    <header className="shadow px-6 py-4">
+    <header className="bg-white shadow px-6 py-4 sticky top-0">
       <nav className="max-w-7xl mx-auto flex items-center justify-between">
         <a href="/" className="flex items-center gap-1.5">
           <CalendarTodayIcon />
