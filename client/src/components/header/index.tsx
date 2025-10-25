@@ -22,11 +22,11 @@ export default function Header() {
           </li>
         </ul>
 
-        <ul className="flex gap-2">
+        <ul className="flex items-center gap-2">
           <li>
             <a
               href="/admin/dashboard"
-              className="text-sm font-semibold h-8 px-2.5 rounded-lg flex items-center justify-center hover:bg-neutral-100"
+              className="text-sm font-semibold text-center min-h-8 px-2.5 py-1.5 rounded-lg flex items-center justify-center hover:bg-neutral-100"
             >
               Admin
             </a>
@@ -34,7 +34,7 @@ export default function Header() {
           <li>
             <a
               href="/events/create"
-              className="text-white text-sm font-semibold bg-black h-8 px-2.5 rounded-lg flex items-center justify-center hover:bg-neutral-800"
+              className="text-white text-sm font-semibold text-center bg-black min-h-8 px-2.5 py-1.5 rounded-lg flex items-center justify-center hover:bg-neutral-800"
             >
               Criar evento
             </a>
