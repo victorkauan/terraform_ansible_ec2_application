@@ -2,6 +2,7 @@ import fastify from "fastify"
 import "dotenv/config"
 import fastifySwagger from "@fastify/swagger"
 import fastifySwaggerUI from "@fastify/swagger-ui"
+import cors from "@fastify/cors";
 import {
   serializerCompiler,
   validatorCompiler,
@@ -47,6 +48,8 @@ app.addHook("onResponse", async (request, reply) => {
     httpRequestDuration.observe({ method, route }, duration)
   }
 })
+
+app.register(cors)
 
 app.register(fastifySwagger, {
   swagger: {
