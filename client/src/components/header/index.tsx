@@ -1,5 +1,6 @@
 import { NavLink } from "react-router";
 import CalendarTodayIcon from "@mui/icons-material/CalendarToday";
+import Button from "../button";
 
 export default function Header() {
   return (
@@ -25,19 +26,13 @@ export default function Header() {
 
         <ul className="flex items-center gap-2">
           <li>
-            <NavLink
-              to="/admin/dashboard"
-              className="text-sm font-semibold text-center min-h-8 px-2.5 py-1.5 rounded-lg flex items-center justify-center hover:bg-neutral-100"
-            >
-              Admin
+            <NavLink to="/admin/dashboard">
+              <Button color="transparent">Admin</Button>
             </NavLink>
           </li>
           <li>
-            <NavLink
-              to="/events/create"
-              className="text-white text-sm font-semibold text-center bg-black min-h-8 px-2.5 py-1.5 rounded-lg flex items-center justify-center hover:bg-neutral-800"
-            >
-              Criar evento
+            <NavLink to="/events/create">
+              <Button>Criar evento</Button>
             </NavLink>
           </li>
         </ul>

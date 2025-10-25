@@ -1,5 +1,6 @@
 import PeopleIcon from "@mui/icons-material/People";
 import type { TEvent } from "../../../services/event/entities/event.type";
+import Button from "../../button";
 
 type TProps = { event: TEvent };
 
@@ -15,11 +16,8 @@ export default function EventCard({ event }: TProps) {
             {event.attendeesAmount}/{event.maximunAttendees} registrados
           </span>
         </p>
-        <a
-          href={`/events/${event.id}`}
-          className="text-white text-sm font-semibold text-center bg-black min-h-8 px-2.5 py-1.5 rounded-lg flex items-center justify-center hover:bg-neutral-800"
-        >
-          Ver detalhes
+        <a href={`/events/${event.id}`}>
+          <Button>Ver detalhes</Button>
         </a>
       </div>
     </article>
